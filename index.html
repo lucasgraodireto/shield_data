@@ -1,0 +1,2115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Data Masking — Grão Direto</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0d08;--surface:#111510;--surface2:#182013;
+  --border:#222d1a;--border2:#2e3d22;
+  --green:#67a22d;--green-dim:#3d5f1a;
+  --red:#ef4444;--blue:#3b82f6;
+  --text:#e8f0e0;--text-muted:#5e7048;--text-dim:#8aaa6a;
+  --mono:'IBM Plex Mono',monospace;--sans:'Montserrat',sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh}
+.hidden{display:none!important}
+.app-hidden{display:none!important}
+
+/* ── GATE ─────────────────────────────── */
+#screen-gate{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.gate-card{background:var(--surface);border:1px solid var(--border2);border-radius:20px;padding:48px 40px;width:100%;max-width:400px;text-align:center}
+.gate-title{font-size:20px;font-weight:700;color:var(--green);margin:12px 0 4px;letter-spacing:.06em;text-transform:uppercase}
+.gate-sub{font-family:var(--mono);font-size:11px;color:var(--text-muted);margin-bottom:28px}
+.gate-domain{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--green);background:rgba(103,162,45,.1);border:1px solid rgba(103,162,45,.25);border-radius:20px;padding:3px 12px;margin-bottom:24px}
+.gate-input{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-family:var(--sans);font-size:14px;padding:13px 16px;outline:none;transition:border .15s;margin-bottom:8px;text-align:center}
+.gate-input:focus{border-color:var(--green)}
+.gate-input::placeholder{color:var(--text-muted)}
+.gate-btn{width:100%;background:var(--green);color:#fff;border:none;border-radius:10px;font-family:var(--sans);font-size:14px;font-weight:700;padding:13px;cursor:pointer;letter-spacing:.06em;text-transform:uppercase;transition:opacity .15s;margin-top:4px}
+.gate-btn:hover{opacity:.88}
+.gate-msg{font-family:var(--mono);font-size:11px;padding:8px 12px;border-radius:7px;margin:8px 0;text-align:left}
+.gate-msg.ok{background:rgba(103,162,45,.1);color:var(--green);border:1px solid rgba(103,162,45,.25)}
+.gate-msg.err{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.gate-otp-input{font-size:30px;font-weight:700;letter-spacing:12px;text-align:center;padding:16px}
+.gate-back{background:none;border:none;font-family:var(--mono);font-size:11px;color:var(--text-muted);cursor:pointer;text-decoration:underline;margin-top:6px}
+
+/* ── HEADER ───────────────────────────── */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:14px}
+.header-title{font-size:14px;font-weight:700;color:var(--green);letter-spacing:.08em;text-transform:uppercase}
+.header-sub{font-family:var(--mono);font-size:10px;color:var(--text-muted)}
+.vault-status{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;cursor:pointer;background:var(--surface2);border:1px solid var(--border2);border-radius:20px;padding:5px 14px;transition:all .15s;margin-left:auto}
+.vault-status:hover{border-color:var(--green)}
+.vault-dot{width:7px;height:7px;border-radius:50%;background:var(--text-muted)}
+.vault-dot.on{background:var(--green)}
+.vault-label{color:var(--text-muted)}
+.vault-label.on{color:var(--green)}
+.support-btn{display:flex;align-items:center;gap:7px;background:var(--surface2);border:1px solid var(--border2);border-radius:20px;padding:5px 14px;cursor:pointer;font-family:var(--mono);font-size:11px;color:var(--text-muted);transition:all .15s;margin-left:8px}
+.support-btn:hover{border-color:var(--green);color:var(--green)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+
+/* ── MAIN ─────────────────────────────── */
+.main{padding:28px;max-width:1300px;margin:0 auto}
+
+/* ── MODE TABS ───────────────────────── */
+.mode-tabs{display:flex;gap:0;margin-bottom:24px;border:1px solid var(--border2);border-radius:10px;overflow:hidden;width:fit-content}
+.mode-tab{background:none;border:none;color:var(--text-muted);font-family:var(--sans);font-size:12px;font-weight:500;padding:10px 24px;cursor:pointer;letter-spacing:.04em;text-transform:uppercase;transition:all .15s;border-right:1px solid var(--border2)}
+.mode-tab:last-child{border-right:none}
+.mode-tab.active{background:var(--green);color:#fff;font-weight:700}
+
+/* ── UPLOAD ZONE ─────────────────────── */
+.upload-zone{border:2px dashed var(--border2);border-radius:16px;padding:56px 40px;text-align:center;cursor:pointer;background:var(--surface);transition:all .2s}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--green);background:rgba(103,162,45,.04)}
+.upload-icon{font-size:44px;display:block;margin-bottom:14px}
+.upload-title{font-size:16px;font-weight:600;margin-bottom:6px}
+.upload-sub{font-family:var(--mono);font-size:11px;color:var(--text-muted)}
+.upload-btn{margin-top:20px;display:inline-flex;align-items:center;gap:8px;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px 24px;font-family:var(--sans);font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:.04em;transition:opacity .15s}
+.upload-btn:hover{opacity:.85}
+
+/* ── SHIELDS GRID ────────────────────── */
+.shields-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:24px}
+.shield-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px}
+.shield-badge{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.shield-label{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em}
+.shield-desc{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+/* ── DECRYPT DROP ────────────────────── */
+.dec-drop{border:2px dashed var(--border2);border-radius:12px;padding:40px 32px;text-align:center;cursor:pointer;background:var(--surface);transition:all .2s}
+.dec-drop:hover,.dec-drop.drag-over{border-color:var(--green);background:rgba(103,162,45,.04)}
+.dec-drop-icon{font-size:40px;display:block;margin-bottom:10px}
+.dec-drop-title{font-family:var(--sans);font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+.dec-drop-sub{font-family:var(--mono);font-size:11px;color:var(--text-muted)}
+
+/* ── PROCESSING ──────────────────────── */
+.processing-bar{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px 26px;margin-bottom:20px}
+.proc-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.proc-title{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--green)}
+.proc-spinner{width:14px;height:14px;border:2px solid rgba(103,162,45,.2);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.progress-track{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--green-dim),var(--green));border-radius:2px;transition:width .4s ease}
+.proc-steps{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.proc-step{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px}
+.proc-step.done{color:var(--green)}
+.proc-step.active{color:var(--green)}
+.proc-step.pending{color:var(--text-muted)}
+.step-icon{font-size:10px;width:14px}
+.ai-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(103,162,45,.1);border:1px solid rgba(103,162,45,.25);border-radius:20px;padding:3px 10px;font-family:var(--mono);font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:.05em}
+
+/* ── REVIEW ──────────────────────────── */
+.review-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.review-title{font-family:var(--sans);font-size:15px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.08em}
+.review-subtitle{font-family:var(--mono);font-size:11px;color:var(--text-muted);margin-top:3px}
+.review-table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:18px}
+.review-row{display:grid;grid-template-columns:1fr 120px 180px 160px 60px;align-items:center;border-bottom:1px solid var(--border);transition:background .15s}
+.review-row:last-child{border-bottom:none}
+.review-row:hover{background:rgba(103,162,45,.025)}
+.review-row.inactive{opacity:.45}
+.review-row.remove-col-row .col-name{text-decoration:line-through;color:var(--red);opacity:.7}
+.review-row-head{display:grid;grid-template-columns:1fr 120px 180px 160px 60px;background:var(--surface2);border-bottom:1px solid var(--border2)}
+.rh{padding:9px 14px;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.07em}
+.rc{padding:11px 14px}
+.col-name{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--text)}
+.col-samples{font-family:var(--mono);font-size:10px;color:var(--text-muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.type-pill{display:inline-flex;align-items:center;font-family:var(--mono);font-size:10px;font-weight:600;padding:3px 9px;border-radius:4px;text-transform:uppercase;letter-spacing:.05em}
+.type-pill.sensitive{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.type-pill.ok{background:rgba(100,116,139,.12);color:var(--text-muted);border:1px solid rgba(100,116,139,.2);font-weight:400}
+.action-select{background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:11px;padding:5px 10px;cursor:pointer;outline:none;width:100%;transition:border .15s}
+.action-select:focus{border-color:var(--green)}
+.action-select:disabled{opacity:.35;cursor:not-allowed}
+.toggle-wrap{display:flex;align-items:center;justify-content:center}
+.toggle{position:relative;width:36px;height:20px;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{position:absolute;inset:0;background:var(--border2);border-radius:10px;transition:background .2s}
+.toggle input:checked~.toggle-track{background:var(--green)}
+.toggle-thumb{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--text);transition:transform .2s}
+.toggle input:checked~.toggle-thumb{transform:translateX(16px)}
+.review-apply-bar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:12px;flex-wrap:wrap;gap:12px}
+.review-summary{font-family:var(--mono);font-size:11px;color:var(--text-muted)}
+.review-summary strong{color:var(--green)}
+.review-community-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(103,162,45,.1);border:1px solid rgba(103,162,45,.25);border-radius:4px;padding:1px 6px;font-family:var(--mono);font-size:9px;color:var(--green);text-transform:uppercase;letter-spacing:.05em;margin-left:6px}
+
+/* ── RESULTS ─────────────────────────── */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px}
+.stat-value{font-family:var(--mono);font-size:24px;font-weight:600;line-height:1;margin-bottom:4px}
+.stat-value.green{color:var(--green)}
+.stat-value.red{color:var(--red)}
+.stat-value.blue{color:var(--blue)}
+.stat-label{font-size:11px;color:var(--text-muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em}
+.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:20px}
+.tab{background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);font-family:var(--mono);font-size:12px;padding:10px 18px;cursor:pointer;letter-spacing:.04em;text-transform:uppercase;transition:all .15s;margin-bottom:-1px}
+.tab.active{color:var(--green);border-bottom-color:var(--green)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+.report-section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin-bottom:20px}
+.report-title{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.detection-list{display:flex;flex-direction:column;gap:8px}
+.detection-item{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--red)}
+.detection-col{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text);min-width:140px}
+.detection-type{font-family:var(--mono);font-size:10px;color:var(--red);background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:4px;padding:2px 8px;text-transform:uppercase;letter-spacing:.05em}
+.detection-action{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--green);background:rgba(103,162,45,.1);border:1px solid rgba(103,162,45,.2);border-radius:4px;padding:2px 8px;text-transform:uppercase;letter-spacing:.05em}
+.type-select{background:var(--surface);border:1px solid var(--border2);border-radius:4px;color:var(--red);font-family:var(--mono);font-size:10px;font-weight:600;padding:2px 6px;cursor:pointer;outline:none;text-transform:uppercase;letter-spacing:.05em}
+.type-select:focus{border-color:var(--green)}
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.table-scroll{overflow-x:auto;max-height:440px;overflow-y:auto}
+.data-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+.data-table thead{position:sticky;top:0;z-index:2;background:var(--surface2)}
+.data-table th{padding:9px 13px;text-align:left;font-weight:600;color:var(--text-dim);border-bottom:1px solid var(--border2);white-space:nowrap;font-size:11px;letter-spacing:.05em;text-transform:uppercase}
+.data-table th.sensitive-col{color:var(--red)}
+.data-table td{padding:7px 13px;border-bottom:1px solid rgba(37,45,61,.5);color:var(--text-dim);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.data-table tr:hover td{background:rgba(103,162,45,.03)}
+.data-table tr:last-child td{border-bottom:none}
+.cell-original{color:var(--red);background:rgba(239,68,68,.07);padding:2px 6px;border-radius:4px}
+.cell-masked{color:var(--green);background:rgba(103,162,45,.07);padding:2px 6px;border-radius:4px}
+.cell-hash{color:var(--blue);background:rgba(59,130,246,.07);padding:2px 6px;border-radius:4px}
+.results-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px}
+.results-title{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.08em;display:flex;align-items:center;gap:8px}
+.actions-bar{display:flex;align-items:center;gap:10px;margin-top:20px;padding:18px 22px;background:var(--surface);border:1px solid var(--border);border-radius:12px;flex-wrap:wrap}
+.actions-bar .info{font-family:var(--mono);font-size:11px;color:var(--text-muted);flex:1}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:8px;padding:10px 18px;font-family:var(--sans);font-size:12px;font-weight:700;cursor:pointer;border:none;transition:opacity .15s;text-transform:uppercase;letter-spacing:.04em}
+.btn:hover{opacity:.85}
+.btn-primary{background:var(--green);color:#fff}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border2)}
+.new-file-btn{background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text-muted);font-family:var(--mono);font-size:11px;padding:6px 14px;cursor:pointer;letter-spacing:.04em;text-transform:uppercase;transition:all .15s}
+.new-file-btn:hover{color:var(--text);border-color:var(--green)}
+.error-box{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:10px;padding:14px 18px;color:var(--red);font-family:var(--mono);font-size:12px;margin-bottom:18px}
+
+/* ── DECRYPT RESULT ──────────────────── */
+.dec-result-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:18px}
+.dec-result-header{padding:12px 16px;background:var(--surface2);border-bottom:1px solid var(--border2);font-family:var(--mono);font-size:12px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.dec-progress{margin:16px 0}
+.key-btn{background:rgba(103,162,45,.12);border:1px solid rgba(103,162,45,.3);border-radius:7px;color:var(--green);font-family:var(--mono);font-size:11px;font-weight:600;padding:6px 14px;cursor:pointer;letter-spacing:.04em;text-transform:uppercase;transition:opacity .15s}
+.key-btn:hover{opacity:.8}
+
+/* ── VAULT MODAL ─────────────────────── */
+.vault-overlay{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px}
+.vault-modal{background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:500px;box-shadow:0 24px 64px rgba(0,0,0,.6);overflow:hidden}
+.vault-modal-head{padding:16px 22px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.vault-modal-title{font-family:var(--sans);font-size:13px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.08em}
+.vault-close{background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;line-height:1;padding:2px 6px}
+.vault-close:hover{color:var(--text)}
+.vault-modal-body{padding:22px;display:flex;flex-direction:column;gap:14px}
+.vault-field-label{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px;display:block}
+.vault-input{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:12px;padding:9px 12px;outline:none;transition:border .15s}
+.vault-input:focus{border-color:var(--green)}
+.vault-input::placeholder{color:var(--text-muted)}
+.vault-btn{background:var(--green);color:#fff;border:none;border-radius:8px;font-family:var(--sans);font-size:12px;font-weight:700;padding:9px 18px;cursor:pointer;text-transform:uppercase;letter-spacing:.04em;transition:opacity .15s}
+.vault-btn:hover{opacity:.85}
+.vault-btn.secondary{background:var(--surface2);color:var(--text-muted);border:1px solid var(--border2)}
+.vault-btn.danger{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.vault-msg{font-family:var(--mono);font-size:11px;padding:8px 12px;border-radius:6px}
+.vault-msg.ok{background:rgba(103,162,45,.1);color:var(--green);border:1px solid rgba(103,162,45,.25)}
+.vault-msg.err{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.vault-msg.info{background:rgba(59,130,246,.1);color:var(--blue);border:1px solid rgba(59,130,246,.25)}
+.vault-divider{border:none;border-top:1px solid var(--border);margin:4px 0}
+.vault-keys-list{display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto}
+.vault-key-item{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;cursor:pointer;transition:border .15s}
+.vault-key-item:hover{border-color:var(--green)}
+.vault-key-icon{font-size:15px;flex-shrink:0}
+.vault-key-info{flex:1;min-width:0}
+.vault-key-name{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vault-key-meta{font-family:var(--mono);font-size:10px;color:var(--text-muted);margin-top:2px}
+.vault-key-load{background:rgba(103,162,45,.1);border:1px solid rgba(103,162,45,.25);color:var(--green);border-radius:6px;font-family:var(--mono);font-size:10px;font-weight:600;padding:4px 10px;cursor:pointer;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.vault-key-del{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:2px 4px}
+.vault-key-del:hover{color:var(--red)}
+.vault-spinner{width:14px;height:14px;border:2px solid rgba(103,162,45,.2);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
+
+/* ── COMMUNITY ───────────────────────── */
+.comm-add-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.comm-add-bar .comm-field{display:flex;flex-direction:column;gap:4px}
+.comm-add-bar .comm-field label{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
+.comm-input{background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--mono);font-size:12px;padding:7px 12px;outline:none;transition:border .15s}
+.comm-input:focus{border-color:var(--green)}
+.comm-select{background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--mono);font-size:12px;padding:7px 12px;outline:none;cursor:pointer}
+.comm-add-btn{background:var(--green);color:#fff;border:none;border-radius:7px;font-family:var(--sans);font-size:12px;font-weight:700;padding:7px 16px;cursor:pointer;text-transform:uppercase;letter-spacing:.04em;transition:opacity .15s;align-self:flex-end}
+.comm-add-btn:hover{opacity:.85}
+.comm-table{width:100%;border-collapse:collapse}
+.comm-table th{padding:9px 14px;font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border2);background:var(--surface2);text-align:left}
+.comm-table td{padding:10px 14px;font-family:var(--mono);font-size:12px;color:var(--text-dim);border-bottom:1px solid rgba(37,45,61,.5);vertical-align:middle}
+.comm-table tr:last-child td{border-bottom:none}
+.comm-table tr:hover td{background:rgba(103,162,45,.03)}
+.comm-kind-pill{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.05em}
+.comm-kind-header{background:rgba(59,130,246,.12);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+.comm-kind-value{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.comm-kind-pattern{background:rgba(103,162,45,.12);color:var(--green);border:1px solid rgba(103,162,45,.2)}
+.comm-scope-pill{font-family:var(--mono);font-size:10px;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 7px}
+.comm-del-btn{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;padding:2px 6px}
+.comm-del-btn:hover{color:var(--red)}
+.comm-empty{text-align:center;padding:28px 0;font-family:var(--mono);font-size:12px;color:var(--text-muted)}
+.comm-hit-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(103,162,45,.1);border:1px solid rgba(103,162,45,.25);border-radius:4px;padding:2px 8px;font-family:var(--mono);font-size:10px;color:var(--green);text-transform:uppercase;letter-spacing:.05em}
+.comm-stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.comm-stat{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 13px;font-family:var(--mono);font-size:11px;color:var(--text-muted)}
+.comm-stat strong{color:var(--green);font-size:16px;display:block;margin-bottom:2px}
+
+/* ── COMMUNITY PROMPT ────────────────── */
+.comm-prompt{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);width:calc(100% - 48px);max-width:580px;z-index:50;background:var(--surface);border:1px solid var(--green);border-radius:14px;padding:14px 18px;box-shadow:0 8px 32px rgba(0,0,0,.5);animation:slideUp .3s ease}
+@keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.comm-prompt-title{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--green);margin-bottom:4px}
+.comm-prompt-sub{font-family:var(--mono);font-size:11px;color:var(--text-muted);margin-bottom:12px;line-height:1.5}
+.comm-prompt-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.comm-prompt-select{background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--mono);font-size:11px;padding:6px 10px;cursor:pointer;outline:none}
+.comm-prompt-btn{background:var(--green);color:#fff;border:none;border-radius:7px;font-family:var(--sans);font-size:12px;font-weight:700;padding:6px 14px;cursor:pointer;letter-spacing:.04em;transition:opacity .15s}
+.comm-prompt-btn:hover{opacity:.85}
+.comm-prompt-skip{background:none;border:1px solid var(--border2);border-radius:7px;color:var(--text-muted);font-family:var(--mono);font-size:11px;padding:6px 14px;cursor:pointer;margin-left:auto;transition:border-color .15s}
+.comm-prompt-skip:hover{border-color:var(--text-muted)}
+
+/* ── DOWNLOAD MODAL ──────────────────── */
+.dl-overlay{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px}
+.dl-modal{background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:100%;max-width:380px;padding:30px 26px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.6);animation:chatSlideIn .2s ease}
+@keyframes chatSlideIn{from{opacity:0;transform:translateY(20px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.dl-title{font-family:var(--sans);font-size:14px;font-weight:700;color:var(--green);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em}
+.dl-subtitle{font-family:var(--mono);font-size:11px;color:var(--text-muted);margin-bottom:22px}
+.dl-steps{display:flex;flex-direction:column;gap:9px;margin-bottom:22px;text-align:left}
+.dl-step{display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:12px;color:var(--text-muted);transition:color .3s}
+.dl-step.active{color:var(--green)}
+.dl-step.done{color:var(--green)}
+.dl-step-icon{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;background:var(--surface2);border:1px solid var(--border2);transition:all .3s}
+.dl-step.active .dl-step-icon{border-color:var(--green);background:rgba(103,162,45,.1)}
+.dl-step.done .dl-step-icon{border-color:var(--green);background:rgba(103,162,45,.15);color:var(--green)}
+.dl-progress-track{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:14px}
+.dl-progress-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--green-dim),var(--green));transition:width .5s ease}
+.dl-status{font-family:var(--mono);font-size:11px;color:var(--text-muted)}
+
+/* ── SUPPORT CHAT ─────────────────────── */
+.chat-window{position:fixed;bottom:22px;right:22px;z-index:200;width:360px;background:var(--surface);border:1px solid var(--border2);border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,.6);overflow:hidden;animation:chatSlideIn .25s ease}
+.chat-head{display:flex;align-items:center;gap:12px;padding:13px 16px;background:var(--surface2);border-bottom:1px solid var(--border)}
+.chat-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--green),#3d5f1a);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0}
+.chat-head-name{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--text)}
+.chat-head-status{font-family:var(--mono);font-size:10px;color:var(--green);display:flex;align-items:center;gap:4px}
+.chat-close{background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;padding:2px 6px;line-height:1;transition:color .15s;margin-left:auto}
+.chat-close:hover{color:var(--text)}
+.chat-body{padding:22px 20px;text-align:center}
+
+/* ── SCROLLBAR ────────────────────────── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--green-dim)}
+.section{margin-bottom:22px}
+.sheet-item{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+.sheet-item:last-child{border-bottom:none}
+.sheet-item:hover{background:rgba(103,162,45,.04)}
+.sheet-item input[type=radio]{width:16px;height:16px;accent-color:var(--green);cursor:pointer;flex-shrink:0}
+.sheet-item-name{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--text)}
+.sheet-item-meta{font-family:var(--mono);font-size:10px;color:var(--text-muted);margin-left:auto}
+</style>
+<script defer>
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const VAULT_URL = 'https://script.google.com/macros/s/AKfycbxzx-XaDA9uxOLIZ5GXzmCtQNODJ2AKSZL6LHUCAfOc9OVxaPJHhUe6uY0cIfiTcEtd/exec';
+const ALLOWED_DOMAIN = 'graodireto.com.br';
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let state = { originalData:[], sanitizedData:[], headers:[], outputHeaders:[], sensitiveColumns:[], pendingColumns:[], stats:{}, filename:'' };
+let decState = { sheetFile:null, keyHex:null, result:null, headers:[], originalRows:[] };
+let _commPromptIdx = null;
+
+// ─── MASK DICTIONARY ────────────────────────────────────────────────────────
+// Masking runs locally (fast). Dictionary synced to Vault once after processing.
+// Same value = same token guaranteed via org dictionary persisted in Vault.
+
+let orgMaskCache   = {};  // original → token  (loaded from Vault on login)
+let orgUnmaskCache = {};  // token → original
+
+// ── Known tradings → fixed fruits ────────────────────────────────
+const KNOWN_TRADINGS = {
+  'ADM':'Abacaxi','ARCHER DANIELS MIDLAND':'Abacaxi',
+  'CARGILL':'Banana','CARGILL AGRICOLA':'Banana',
+  'AMAGGI':'Caju',
+  'LDC':'Damasco','LOUIS DREYFUS':'Damasco','LOUIS DREYFUS COMPANY':'Damasco',
+  'BUNGE':'Framboesa','BUNGE ALIMENTOS':'Framboesa',
+  'VITERRA':'Goiaba','GLENCORE':'Goiaba',
+  'COFCO':'Jaca','ZEN-NOH':'Kiwi','ZEN NOH':'Kiwi',
+  'MARUBENI':'Limao','MITSUI':'Maca',
+  'NOBLE':'Manga','DREYFUS':'Nectarina',
+  'GAVILON':'Pessego','OLAM':'Roma',
+  'CEAGRO':'Acai','FIAGRIL':'Ameixa',
+  'MULTIGRAIN':'Amora','AGRONORTE':'Bacuri',
+};
+
+const FRUITS = [
+  'Abacaxi','Banana','Caju','Damasco','Framboesa','Goiaba','Jaca','Kiwi',
+  'Limao','Maca','Manga','Nectarina','Pessego','Roma','Sapoti','Tamarindo',
+  'Uva','Uvaia','Acerola','Acai','Ameixa','Amora','Atemoia','Bacuri',
+  'Biriba','Buriti','Carambola','Cupuacu','Graviola','Guarana','Inga',
+  'Jabuticaba','Jambo','Jucara','Murici','Pequi','Pitanga','Pitaya',
+  'Pupunha','Siriguela','Tucuma',
+];
+
+const DIGIT_TO_LETTER = {0:'Z',1:'A',2:'B',3:'C',4:'D',5:'E',6:'F',7:'G',8:'H',9:'I'};
+var _categoryCounts = {};
+var _fruitIdx = 0;
+
+function _nextFruit() {
+  var f = FRUITS[_fruitIdx % FRUITS.length]; _fruitIdx++; return f;
+}
+
+function _maskCompany(val) {
+  var upper = val.trim().toUpperCase();
+  for (var k in KNOWN_TRADINGS) {
+    if (upper === k || upper.indexOf(k) >= 0) return KNOWN_TRADINGS[k];
+  }
+  return _nextFruit();
+}
+
+function _maskName(val) {
+  // val is already uppercased; split on spaces/hyphens/dots
+  var parts = val.trim().split(/[\s\-\.]+/).filter(function(p){ return p.length >= 1; });
+  if (!parts.length) return val;
+  return parts.map(function(p){ return p[0].toUpperCase() + '.'; }).join('');
+}
+
+function _maskCPF(val) {
+  var i = 0;
+  return val.replace(/[0-9]/g, function(d){ i++; return i%2===0 ? d : DIGIT_TO_LETTER[parseInt(d)]; });
+}
+
+function _maskCNPJ(val) {
+  var i = 0;
+  return val.replace(/[0-9]/g, function(d){ i++; return i%3===0 ? d : DIGIT_TO_LETTER[parseInt(d)]; });
+}
+
+function _maskPhone(val) {
+  var i = 0;
+  return val.replace(/[0-9]/g, function(d){ i++; return i%2===0 ? d : DIGIT_TO_LETTER[parseInt(d)]; });
+}
+
+function _maskEmail(val) {
+  var parts = val.split('@'); if (parts.length !== 2) return val;
+  var user = parts[0];
+  return user[0] + '*'.repeat(Math.max(1,user.length-2)) + user[user.length-1] + '@' + parts[1];
+}
+
+function _maskCategoryCode(val, colName) {
+  var raw = String(val).replace(/[^a-zA-Z0-9]/g,'');
+  var prefix = raw.length >= 3 ? raw.slice(0,3).toUpperCase()
+    : (colName||'VAL').replace(/[^a-zA-Z]/g,'').slice(0,3).toUpperCase() || 'VAL';
+  _categoryCounts[prefix] = (_categoryCounts[prefix]||0) + 1;
+  return prefix + '_' + String(_categoryCounts[prefix]).padStart(3,'0');
+}
+
+function _maskByType(val, type, colName) {
+  switch (type) {
+    case 'COMPANY': return _maskCompany(val);
+    case 'NAME':    return _maskName(val);
+    case 'CPF':     return _maskCPF(val);
+    case 'CNPJ':    return _maskCNPJ(val);
+    case 'PHONE':   return _maskPhone(val);
+    case 'EMAIL':   return _maskEmail(val);
+    default:        return _maskCategoryCode(val, colName);
+  }
+}
+
+// ── Deterministic types: no dict needed, always reversible ──────
+// CPF/CNPJ/Phone use math rules → same input always = same output
+// No Vault storage needed for these types
+const DETERMINISTIC_TYPES = { CPF:true, CNPJ:true, PHONE:true, EMAIL:true };
+
+// Reverse functions for deterministic types
+const LETTER_TO_DIGIT = {Z:0,A:1,B:2,C:3,D:4,E:5,F:6,G:7,H:8,I:9};
+
+// Unmask: must count ALL digit positions (letters + kept digits) to match mask counter
+function _unmaskAlternate(val, keepEvery) {
+  // keepEvery=2 for CPF/Phone (odd replaced), keepEvery=3 for CNPJ (every 3rd kept)
+  var i = 0, result = '';
+  for (var ci = 0; ci < val.length; ci++) {
+    var c = val[ci];
+    if (c >= '0' && c <= '9') {
+      i++;
+      result += c; // digit that was kept during masking
+    } else if (LETTER_TO_DIGIT[c.toUpperCase()] !== undefined) {
+      i++;
+      result += LETTER_TO_DIGIT[c.toUpperCase()]; // letter → original digit
+    } else {
+      result += c; // separator: ( ) - . space
+    }
+  }
+  return result;
+}
+function _unmaskCPF(val)   { return _unmaskAlternate(val, 2); }
+function _unmaskPhone(val) { return _unmaskAlternate(val, 2); }
+function _unmaskCNPJ(val)  { return _unmaskAlternate(val, 3); }
+function _unmaskEmail(val) { return val; } // partial — can't fully reverse
+
+// ── getMasked: deterministic for numbers, dict for semantic values ─
+function getMasked(value, type, colName) {
+  var raw = String(value).trim(); if (!raw) return value;
+  var key = raw.toUpperCase(); // normalize case
+  if (DETERMINISTIC_TYPES[type]) return _maskByType(key, type, colName||'');
+  // Already in cache → return existing token (consistent across all files)
+  if (orgMaskCache[key] !== undefined) return orgMaskCache[key];
+  // Generate new token
+  var token = _maskByType(key, type, colName||'');
+  // Uniqueness check: if this token is already used by a DIFFERENT original value
+  // increment suffix — but first verify the reverse dict is consistent
+  var base = token, n = 2;
+  while (orgUnmaskCache[token] !== undefined && orgUnmaskCache[token] !== key) {
+    token = base + '_' + n++;
+    if (n > 200) { token = base + '_' + Date.now(); break; } // safety valve
+  }
+  orgMaskCache[key]    = token;
+  orgUnmaskCache[token] = key;
+  return token;
+}
+
+// ── getOriginal: reverse lookup ──────────────────────────────────
+function getOriginal(token, type) {
+  if (!token) return token;
+  // Deterministic reverse
+  if (type === 'CPF')   return _unmaskCPF(token);
+  if (type === 'CNPJ')  return _unmaskCNPJ(token);
+  if (type === 'PHONE') return _unmaskPhone(token);
+  // Dict lookup
+  return orgUnmaskCache[token] !== undefined ? orgUnmaskCache[token] : token;
+}
+
+function serializeCipherMap(m) { return JSON.stringify(m); }
+function deserializeCipherMap(s) {
+  try { return JSON.parse(s); } catch(e) { return null; }
+}
+function invertDict(d) { var r={}; Object.keys(d).forEach(function(k){r[d[k]]=k;}); return r; }
+
+// ── Init: load existing org dictionary from Vault ─────────────────
+async function initCryptoKey() {
+  orgMaskCache = {}; orgUnmaskCache = {}; _fruitIdx = 0; _categoryCounts = {};
+  if (vault.connected && vault.token) {
+    try {
+      var data = await vaultCall({ action:'getOrgKey' });
+      if (data.ok && data.keyHex) {
+        var loaded = JSON.parse(data.keyHex);
+        if (loaded && loaded.d) {
+          // Normalize all keys to uppercase to match getMasked behavior
+          var rawD = loaded.d, rawR = loaded.r || invertDict(loaded.d);
+          orgMaskCache = {};
+          Object.keys(rawD).forEach(function(k){ orgMaskCache[k.toUpperCase()] = rawD[k]; });
+          orgUnmaskCache = {};
+          Object.keys(rawR).forEach(function(k){ orgUnmaskCache[k] = rawR[k].toUpperCase ? rawR[k].toUpperCase() : rawR[k]; });
+          _fruitIdx = loaded.fi || 0;
+        }
+      }
+    } catch(e) { console.warn('Dict load error:', e); }
+  }
+}
+
+// ── Sync dictionary to Vault after masking (one call, fast) ───────
+async function syncDictToVault() {
+  if (!vault.connected) return;
+  // Only semantic values (Company, Name, Generic) — CPF/Phone are deterministic
+  // Dictionary stays small even for 100k row files
+  try {
+    await vaultCall({ action:'saveOrgKey', keyHex: JSON.stringify({d:orgMaskCache, r:orgUnmaskCache, fi:_fruitIdx}) });
+  } catch(e) { console.warn('Dict sync error:', e); }
+}
+
+async function regenerateCipher() {
+  if (!vault.connected) { alert('Faça login para reiniciar o dicionário.'); return; }
+  if (!confirm('Reiniciar dicionário? Planilhas antigas não poderão ser descriptografadas.')) return;
+  orgMaskCache = {}; orgUnmaskCache = {}; _fruitIdx = 0; _categoryCounts = {};
+  await syncDictToVault();
+  alert('Dicionário reiniciado.');
+}
+
+// Batch mask — local, no network (called during applyFromReview)
+async function batchMask(items) {
+  var result = {};
+  items.forEach(function(it) {
+    var v = String(it.value||'').trim(); if (!v) return;
+    result[v] = getMasked(v, it.type||'OTHER_PII', it.colName||'');
+  });
+  return result;
+}
+
+async function batchUnmask(tokens) {
+  var result = {};
+  tokens.forEach(function(t){ if(orgUnmaskCache[t]!==undefined) result[t]=orgUnmaskCache[t]; });
+  return result;
+}
+
+// ─── VAULT ─────────────────────────────────────────────────────────────────
+// ─── VAULT ─────────────────────────────────────────────────────────────────
+// ─── VAULT ────────────────────────────────────────────────────────────────────
+const vault = { url:VAULT_URL, email:localStorage.getItem('ds_email')||'', token:localStorage.getItem('ds_token')||'', connected:false };
+
+function vaultPersist() {
+  if (vault.token) { localStorage.setItem('ds_token',vault.token); localStorage.setItem('ds_email',vault.email); }
+  else { localStorage.removeItem('ds_token'); localStorage.removeItem('ds_email'); }
+}
+
+function vaultUpdatePill() {
+  var dot=document.getElementById('vault-dot'), lbl=document.getElementById('vault-label');
+  if (!dot) return;
+  if (vault.connected) { dot.className='vault-dot on'; lbl.className='vault-label on'; lbl.textContent=vault.email.split('@')[0]; }
+  else { dot.className='vault-dot off'; lbl.className='vault-label off'; lbl.textContent='Entrar'; }
+}
+
+async function vaultCall(body) {
+  var res = await fetch(vault.url, { method:'POST', body:JSON.stringify(Object.assign({}, body, {token:vault.token})) });
+  return res.json();
+}
+
+function openVaultModal(view) { document.getElementById('vault-overlay').classList.remove('hidden'); renderVaultView(view||'auto'); }
+function closeVault() { document.getElementById('vault-overlay').classList.add('hidden'); }
+function closeVaultIfBg(e) { if(e.target===document.getElementById('vault-overlay')) closeVault(); }
+
+function renderVaultView(view) {
+  if (view==='auto') view = vault.connected?'keys':'login';
+  var titles={login:'Entrar no Vault', otp:'Código enviado', keys:'Minhas Cifras'};
+  document.getElementById('vault-modal-title').textContent = titles[view]||'Vault';
+  var body=document.getElementById('vault-modal-body');
+  if (view==='login') renderLogin(body);
+  else if (view==='otp') renderOtp(body);
+  else if (view==='keys') renderKeys(body);
+}
+
+var _otpEmail='';
+
+function renderLogin(body) {
+  body.innerHTML =
+    '<div style="text-align:center;padding:8px 0 18px;"><div style="font-size:34px;margin-bottom:8px;">📧</div>'+
+    '<div style="font-family:var(--mono);font-size:12px;color:var(--text-muted);line-height:1.7;">Digite seu e-mail para receber o código de acesso.</div></div>'+
+    '<div><label class="vault-field-label">E-mail</label>'+
+    '<input class="vault-input" id="vi-email" type="email" placeholder="voce@graodireto.com.br" style="font-size:14px;" /></div>'+
+    '<div id="vault-login-msg"></div>'+
+    '<button class="vault-btn" style="width:100%;margin-top:4px;" onclick="requestOTP()">Enviar código →</button>';
+  setTimeout(function(){ var el=document.getElementById('vi-email'); if(el){el.focus();el.addEventListener('keydown',function(ev){if(ev.key==='Enter')requestOTP();});} },50);
+}
+
+async function requestOTP() {
+  var email=(document.getElementById('vi-email').value||'').trim().toLowerCase();
+  var msg=document.getElementById('vault-login-msg');
+  if (!email.endsWith('@'+ALLOWED_DOMAIN)) { msg.className='vault-msg err'; msg.textContent='Somente @'+ALLOWED_DOMAIN; return; }
+  msg.innerHTML=spinnerHTML('Enviando...');
+  try {
+    var data=await fetch(vault.url,{method:'POST',body:JSON.stringify({action:'requestOTP',email:email})}).then(r=>r.json());
+    if(data.ok){_otpEmail=email;renderVaultView('otp');}
+    else{msg.className='vault-msg err';msg.textContent='✗ '+(data.error||'Erro');}
+  } catch(e){msg.className='vault-msg err';msg.textContent='✗ Erro de rede.';}
+}
+
+function renderOtp(body) {
+  body.innerHTML =
+    '<div style="text-align:center;padding:8px 0 18px;"><div style="font-size:34px;margin-bottom:8px;">📬</div>'+
+    '<div style="font-family:var(--mono);font-size:12px;color:var(--text-muted);line-height:1.7;">Código enviado para<br><strong style="color:var(--green);">'+escHtml(_otpEmail)+'</strong><br><span style="font-size:10px;">Válido por 10 minutos</span></div></div>'+
+    '<div><label class="vault-field-label">Código de 6 dígitos</label>'+
+    '<input class="vault-input" id="vi-otp" type="text" inputmode="numeric" maxlength="6" placeholder="000000" style="font-size:26px;text-align:center;letter-spacing:10px;font-weight:700;" /></div>'+
+    '<div id="vault-otp-msg"></div>'+
+    '<button class="vault-btn" style="width:100%;margin-top:4px;" onclick="verifyOTP()">Verificar →</button>'+
+    '<button class="vault-btn secondary" style="width:100%;margin-top:6px;" onclick="renderVaultView(\'login\')">← Outro e-mail</button>'+
+    '<div style="text-align:center;margin-top:10px;"><button style="background:none;border:none;font-family:var(--mono);font-size:10px;color:var(--text-muted);cursor:pointer;" onclick="requestOTPResend()">Reenviar código</button></div>';
+  setTimeout(function(){
+    var el=document.getElementById('vi-otp'); if(!el) return;
+    el.focus();
+    el.addEventListener('input',function(){ var d=el.value.replace(/[^0-9]/g,''); el.value=d; if(d.length===6) verifyOTP(); });
+    el.addEventListener('keydown',function(ev){if(ev.key==='Enter')verifyOTP();});
+  },50);
+}
+
+async function requestOTPResend() {
+  var msg=document.getElementById('vault-otp-msg'); msg.innerHTML=spinnerHTML('Reenviando...');
+  try { var data=await fetch(vault.url,{method:'POST',body:JSON.stringify({action:'requestOTP',email:_otpEmail})}).then(r=>r.json()); msg.className=data.ok?'vault-msg ok':'vault-msg err'; msg.textContent=data.ok?'✓ Novo código enviado!':'✗ '+data.error; } catch(e){msg.className='vault-msg err';msg.textContent='✗ Erro.';}
+}
+
+async function verifyOTP() {
+  var otp=(document.getElementById('vi-otp').value||'').replace(/[^0-9]/g,'');
+  var msg=document.getElementById('vault-otp-msg');
+  if(otp.length!==6){msg.className='vault-msg err';msg.textContent='Digite os 6 dígitos.';return;}
+  msg.innerHTML=spinnerHTML('Verificando...');
+  try {
+    var data=await fetch(vault.url,{method:'POST',body:JSON.stringify({action:'verifyOTP',email:_otpEmail,otp:otp})}).then(r=>r.json());
+    if(data.ok){
+      vault.email=_otpEmail; vault.token=data.token; vault.connected=true;
+      vaultPersist(); vaultUpdatePill(); loadCommunityTerms(true); initCryptoKey();
+      msg.className='vault-msg ok'; msg.textContent='✓ Bem-vindo, '+_otpEmail.split('@')[0]+'!';
+      setTimeout(function(){renderVaultView('keys');},600);
+    } else { msg.className='vault-msg err'; msg.textContent='✗ '+(data.error||'Código inválido'); document.getElementById('vi-otp').value=''; }
+  } catch(e){msg.className='vault-msg err';msg.textContent='✗ Erro de rede.';}
+}
+
+async function renderKeys(body) {
+  if(!body) body=document.getElementById('vault-modal-body');
+  body.innerHTML=spinnerHTML('Carregando...');
+  try {
+    var data=await vaultCall({action:'list'});
+    if(!data.ok){if(data.error==='Sessão inválida'){vault.token='';vault.connected=false;vaultPersist();vaultUpdatePill();renderVaultView('login');return;}body.innerHTML='<div class="vault-msg err">✗ '+escHtml(data.error)+'</div>';return;}
+    var keys=data.keys||[];
+    var userInfo='<div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);margin-bottom:12px;">'+escHtml(vault.email)+' · '+keys.length+' cifra(s)</div>';
+    var keyList=keys.length?'<div class="vault-keys-list">'+keys.map(function(k){
+      return '<div class="vault-key-item" id="vk-'+escHtml(k.id)+'">'+
+        '<span class="vault-key-icon">🔐</span>'+
+        '<div class="vault-key-info"><div class="vault-key-name">'+escHtml(k.filename||'arquivo')+'</div>'+
+        '<div class="vault-key-meta">'+escHtml(k.date||'')+'</div></div>'+
+        '<button class="vault-key-del" onclick="vaultDeleteKey(\''+escHtml(k.id)+'\')">🗑</button>'+
+      '</div>';
+    }).join('')+'</div>'
+    :'<div class="vault-msg info">Nenhuma cifra salva ainda.</div>';
+    body.innerHTML=userInfo+keyList+
+      '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">'+
+      '<button class="vault-btn" onclick="regenerateCipher().then(closeVault)" style="flex:1;">🔄 Gerar Nova Cifra</button>'+
+      '<button class="vault-btn danger" onclick="doLogout()" style="flex:0;">Sair</button></div>';
+  } catch(e){body.innerHTML='<div class="vault-msg err">✗ Erro de rede.</div>';}
+}
+
+async function vaultDeleteKey(id) {
+  if(!confirm('Excluir esta cifra?')) return;
+  var data=await vaultCall({action:'delete',id:id});
+  if(data.ok) document.getElementById('vk-'+id)?.remove();
+  else alert('✗ '+data.error);
+}
+
+function doLogout() {
+  vault.email=''; vault.token=''; vault.connected=false;
+  vaultPersist(); vaultUpdatePill(); closeVault(); showGate();
+}
+
+// ─── GATE ─────────────────────────────────────────────────────────────────────
+var _gateEmail='';
+
+function showGate() { document.getElementById('screen-gate').style.display='flex'; document.getElementById('app-root').classList.add('app-hidden'); }
+function showApp()  { document.getElementById('screen-gate').style.display='none';  document.getElementById('app-root').classList.remove('app-hidden'); vaultUpdatePill(); loadCommunityTerms(false); }
+function gateBackToEmail() { document.getElementById('gate-step-otp').style.display='none'; document.getElementById('gate-step-email').style.display='block'; document.getElementById('gate-otp').value=''; document.getElementById('gate-otp-msg').textContent=''; setTimeout(function(){document.getElementById('gate-email').focus();},50); }
+
+async function gateRequestOTP() {
+  var email=(document.getElementById('gate-email').value||'').trim().toLowerCase();
+  var msg=document.getElementById('gate-email-msg');
+  if(!email.endsWith('@'+ALLOWED_DOMAIN)){msg.className='gate-msg err';msg.textContent='Somente @'+ALLOWED_DOMAIN;return;}
+  msg.innerHTML=spinnerHTML('Enviando código...');
+  try {
+    var data=await fetch(vault.url,{method:'POST',body:JSON.stringify({action:'requestOTP',email:email})}).then(r=>r.json());
+    if(data.ok){
+      _gateEmail=email;
+      document.getElementById('gate-otp-email-display').textContent=email;
+      document.getElementById('gate-step-email').style.display='none';
+      document.getElementById('gate-step-otp').style.display='block';
+      msg.textContent='';
+      setTimeout(function(){
+        var otp=document.getElementById('gate-otp'); if(!otp) return;
+        otp.focus();
+        otp.addEventListener('input',function(){ var d=otp.value.replace(/[^0-9]/g,''); otp.value=d; if(d.length===6) gateVerifyOTP(); });
+        otp.addEventListener('keydown',function(ev){if(ev.key==='Enter')gateVerifyOTP();});
+      },50);
+    } else { msg.className='gate-msg err'; msg.textContent='✗ '+(data.error||'Erro ao enviar'); }
+  } catch(e){msg.className='gate-msg err';msg.textContent='✗ Erro de conexão.';}
+}
+
+async function gateResend() {
+  var msg=document.getElementById('gate-otp-msg'); msg.innerHTML=spinnerHTML('Reenviando...');
+  try { var data=await fetch(vault.url,{method:'POST',body:JSON.stringify({action:'requestOTP',email:_gateEmail})}).then(r=>r.json()); msg.className=data.ok?'gate-msg ok':'gate-msg err'; msg.textContent=data.ok?'✓ Novo código enviado!':'✗ '+data.error; } catch(e){msg.className='gate-msg err';msg.textContent='✗ Erro.';}
+}
+
+async function gateVerifyOTP() {
+  var otp=(document.getElementById('gate-otp').value||'').replace(/[^0-9]/g,'');
+  var msg=document.getElementById('gate-otp-msg');
+  if(otp.length!==6){msg.className='gate-msg err';msg.textContent='Digite os 6 dígitos.';return;}
+  msg.innerHTML=spinnerHTML('Verificando...');
+  try {
+    var data=await fetch(vault.url,{method:'POST',body:JSON.stringify({action:'verifyOTP',email:_gateEmail,otp:otp})}).then(r=>r.json());
+    if(data.ok){
+      vault.email=_gateEmail; vault.token=data.token; vault.connected=true;
+      vaultPersist(); msg.className='gate-msg ok'; msg.textContent='✓ Acesso liberado!';
+      await initCryptoKey();
+      setTimeout(showApp, 500);
+    } else { msg.className='gate-msg err'; msg.textContent='✗ '+(data.error||'Código inválido'); document.getElementById('gate-otp').value=''; }
+  } catch(e){msg.className='gate-msg err';msg.textContent='✗ Erro de rede.';}
+}
+
+window.addEventListener('load', function() {
+  vaultUpdatePill();
+  if (vault.token && vault.email) {
+    // Show gate with loading state while validating token silently
+    document.getElementById('screen-gate').style.display = 'flex';
+    document.getElementById('gate-step-email').innerHTML =
+      '<div style="text-align:center;padding:16px 0;">' +
+      '<div class="vault-spinner" style="width:22px;height:22px;margin:0 auto 10px;"></div>' +
+      '<div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);">Verificando sessão...</div>' +
+      '</div>';
+
+    fetch(vault.url, {method:'POST', body:JSON.stringify({action:'ping', token:vault.token})})
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        vault.connected = true;
+        vaultUpdatePill();
+        initCryptoKey();
+        showApp(); // skip gate entirely
+      } else {
+        // Session expired — show normal gate
+        vault.token = ''; vault.connected = false;
+        vaultPersist();
+        restoreGate();
+        showGate();
+      }
+    })
+    .catch(function() {
+      // Network error — if token exists try to show app optimistically
+      if (vault.token) {
+        vault.connected = false;
+        initCryptoKey();
+        showApp();
+      } else {
+        restoreGate();
+        showGate();
+      }
+    });
+  } else {
+    showGate();
+  }
+});
+
+function restoreGate() {
+  var el = document.getElementById('gate-step-email');
+  el.innerHTML = '';
+  var inp = document.createElement('input');
+  inp.className = 'gate-input'; inp.id = 'gate-email';
+  inp.type = 'email'; inp.placeholder = 'seu@graodireto.com.br';
+  inp.addEventListener('keydown', function(ev){ if(ev.key==='Enter') gateRequestOTP(); });
+  var msg = document.createElement('div'); msg.id = 'gate-email-msg';
+  var btn = document.createElement('button');
+  btn.className = 'gate-btn'; btn.textContent = 'Enviar código →';
+  btn.onclick = gateRequestOTP;
+  el.appendChild(inp); el.appendChild(msg); el.appendChild(btn);
+}
+
+// ─── DETECTION ────────────────────────────────────────────────────────────────
+const PATTERNS = {
+  cpf:/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/,
+  cnpj:/\b\d{2}\.?\d{3}\.?\d{3}\/?0001-?\d{2}\b|\b\d{14}\b/,
+  phone:/(?:\+55\s?)?(?:\(?\d{2}\)?)[\s\-](?:9\s?\d{4}|\d{4})[\s\-]?\d{4}\b/,
+  email:/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/
+};
+const NON_SENSITIVE = ['data','date','dt_','hora','time','timestamp','valor','value','preco','price','custo','total','quantidade','qty','amount','status','tipo','type','categoria','id','codigo','code','ref','sku','produto','descricao','obs','versao','seq'];
+const SENSITIVE_HEADERS = ['cpf','cnpj','rg','telefone','fone','celular','tel','phone','mobile','whatsapp','nome','name','razao','fantasia','trading','empresa','client','email','e-mail','mail','endereco','address','cep','cartao','card','conta','agencia','banco','bank','senha','password','token','nascimento'];
+
+function isNonSensitive(h) { var l=h.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); return NON_SENSITIVE.some(k=>l===k||l.startsWith(k)||l.endsWith(k)||l.includes('_'+k)||l.includes(k+'_')); }
+function looksLikeDate(v) { var s=String(v).trim(); return /^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}$/.test(s)||/^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}$/.test(s); }
+
+function detectSensitiveHeaders(headers) {
+  return headers.filter(h=>{ var l=h.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); return SENSITIVE_HEADERS.some(k=>l.includes(k)); });
+}
+
+function detectSensitiveByContent(headers, rows) {
+  var detected=new Map();
+  headers.forEach(function(h,ci){
+    if(isNonSensitive(h)) return;
+    var samples=rows.slice(0,30).map(r=>String(r[ci]??'').trim()).filter(Boolean);
+    var counts={cpf:0,cnpj:0,phone:0,email:0};
+    samples.forEach(function(val){
+      if(looksLikeDate(val)) return;
+      var digits=val.replace(/\D/g,'');
+      if(PATTERNS.cpf.test(val)&&digits.length===11) counts.cpf++;
+      else if(PATTERNS.cnpj.test(val)&&digits.length===14) counts.cnpj++;
+      else if(PATTERNS.phone.test(val)&&digits.length>=10&&digits.length<=13) counts.phone++;
+      else if(PATTERNS.email.test(val)) counts.email++;
+    });
+    var top=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+    if(top[1]>=2) detected.set(h,{type:top[0],count:top[1]});
+  });
+  return detected;
+}
+
+async function analyzeWithAI(headers) {
+  var prompt='Você é um sistema de proteção de dados. Analise SOMENTE os nomes das colunas e identifique quais contêm dados sensíveis/PII.\n\nColunas: '+JSON.stringify(headers)+'\n\nNÃO são sensíveis: datas, valores, status, códigos, IDs.\nSÃO sensíveis: CPF, CNPJ, nome, telefone, e-mail, endereço, razão social, trading name.\n\nResponda SOMENTE JSON sem markdown:\n[{"column":"nome","type":"CPF|CNPJ|PHONE|EMAIL|NAME|COMPANY|ADDRESS|BANK|OTHER_PII","action":"hash","reason":"motivo"}]\n\nSe nada for sensível: []';
+  try {
+    var res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+    var data=await res.json();
+    var text=data.content?.[0]?.text||'[]';
+    return JSON.parse(text.replace(/```json|```/g,'').trim());
+  } catch(e){ console.warn('AI failed:',e); return null; }
+}
+
+// ─── COMMUNITY ────────────────────────────────────────────────────────────────
+var communityTerms=[], communityLoaded=false;
+
+async function loadCommunityTerms(force) {
+  if(communityLoaded&&!force) return;
+  if(!vault.connected) return;
+  try { var data=await vaultCall({action:'listCommunity'}); if(data.ok){communityTerms=data.terms||[];communityLoaded=true;renderCommunityTable();} } catch(e){}
+}
+
+var _origSwitchTab=null; // set after switchTab defined
+
+function renderCommunityTable() {
+  var tbody=document.getElementById('comm-tbody'); if(!tbody) return;
+  var stats=document.getElementById('comm-stats');
+  var terms=communityTerms;
+  if(stats) stats.innerHTML='<div class="comm-stat"><strong>'+terms.length+'</strong>Total</div><div class="comm-stat"><strong>'+terms.filter(t=>t.scope==='org').length+'</strong>Org</div><div class="comm-stat"><strong>'+terms.filter(t=>t.scope==='global').length+'</strong>Global</div>';
+  if(!terms.length){tbody.innerHTML='<tr><td colspan="7" class="comm-empty">Nenhum termo ainda.</td></tr>';return;}
+  var kc={header:'comm-kind-header',value:'comm-kind-value',pattern:'comm-kind-pattern'};
+  var kl={header:'Cabeçalho',value:'Valor exato',pattern:'Contém'};
+  tbody.innerHTML=terms.map(function(t){
+    var canDel=vault.connected&&(t.scope==='org'||t.addedBy===vault.email);
+    return '<tr><td><strong style="color:var(--text);">'+escHtml(t.term)+'</strong></td>'+
+      '<td><span class="comm-kind-pill '+(kc[t.kind]||'comm-kind-header')+'">'+(kl[t.kind]||t.kind)+'</span></td>'+
+      '<td style="font-size:11px;color:var(--text-muted);">'+escHtml(t.type||'')+'</td>'+
+      '<td style="font-size:10px;color:var(--text-muted);">'+escHtml(t.addedBy||'—')+'</td>'+
+      '<td>'+(t.hits>0?'<span class="comm-hit-badge">↑ '+t.hits+'</span>':'<span style="color:var(--text-muted);font-size:11px;">0</span>')+'</td>'+
+      '<td><span class="comm-scope-pill">'+(t.scope==='global'?'🌐 Para todos':'🏢 Apenas para mim')+'</span></td>'+
+      '<td>'+(canDel?'<button class="comm-del-btn" onclick="deleteCommunityTerm(\''+escHtml(t.id)+'\')">🗑</button>':'')+'</td></tr>';
+  }).join('');
+}
+
+async function addCommunityTerm() {
+  var term=(document.getElementById('comm-term-input').value||'').trim();
+  var kind=document.getElementById('comm-kind-select').value;
+  var type=document.getElementById('comm-type-select').value;
+  var scope=document.getElementById('comm-scope-select').value;
+  var msg=document.getElementById('comm-add-msg');
+  if(!term){msg.className='vault-msg err';msg.textContent='⚠ Informe o termo.';return;}
+  if(!vault.connected){msg.className='vault-msg err';msg.textContent='⚠ Faça login.';return;}
+  msg.innerHTML=spinnerHTML('Salvando...');
+  try {
+    var data=await vaultCall({action:'addCommunity',term:term,kind:kind,type:type,scope:scope});
+    if(data.ok){msg.className='vault-msg ok';msg.textContent='✓ Adicionado!';document.getElementById('comm-term-input').value='';communityLoaded=false;await loadCommunityTerms(true);setTimeout(function(){msg.textContent='';msg.className='';},3000);}
+    else{msg.className='vault-msg err';msg.textContent='✗ '+data.error;}
+  }catch(e){msg.className='vault-msg err';msg.textContent='✗ Erro de rede.';}
+}
+
+async function deleteCommunityTerm(id) {
+  if(!confirm('Remover este termo?')) return;
+  try { var data=await vaultCall({action:'deleteCommunity',id:id}); if(data.ok){communityLoaded=false;await loadCommunityTerms(true);}else alert('✗ '+data.error); }catch(e){alert('✗ Erro.');}
+}
+
+function applyCommunityDetection(headers, rows, sensitiveMap) {
+  if(!communityTerms.length) return;
+  var hits={};
+  headers.forEach(function(h,ci){
+    if(sensitiveMap.has(h)) return;
+    var lower=h.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    communityTerms.forEach(function(t){
+      var tl=t.term.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      var matched=false;
+      if(t.kind==='header') matched=lower===tl||lower.includes(tl);
+      else if(t.kind==='pattern') matched=lower.includes(tl);
+      else if(t.kind==='value') matched=rows.slice(0,30).some(r=>String(r[ci]||'').trim().toLowerCase()===tl);
+      if(matched){sensitiveMap.set(h,{type:t.type||'OTHER_PII',action:'hash',reason:'🌐 Comunidade: "'+t.term+'"',source:'COMMUNITY'});hits[t.id]=(hits[t.id]||0)+1;}
+    });
+  });
+  if(vault.connected&&Object.keys(hits).length) vaultCall({action:'reportHits',hits:hits}).catch(function(){});
+}
+
+// Community prompt
+function showCommunityPrompt(colName) {
+  var p=document.getElementById('comm-prompt'),s=document.getElementById('comm-prompt-sub');
+  s.textContent='Você marcou "'+colName+'" como sensível. Adicionar ao dicionário da comunidade?';
+  p.style.display='block';
+}
+function dismissCommunityPrompt() { document.getElementById('comm-prompt').style.display='none'; _commPromptIdx=null; }
+async function confirmCommunityAdd() {
+  if(_commPromptIdx===null) return;
+  var col=state.pendingColumns[_commPromptIdx];
+  var type=document.getElementById('comm-prompt-type').value;
+  var scope=document.getElementById('comm-prompt-scope').value;
+  try { var data=await vaultCall({action:'addCommunity',term:col.column,kind:'header',type:type,scope:scope}); if(data.ok) communityTerms.push({id:data.id,term:col.column,kind:'header',type:type,scope:scope,addedBy:vault.email,date:'agora',hits:0}); }catch(e){}
+  dismissCommunityPrompt();
+}
+
+// ─── FILE HANDLING ────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  var fi=document.getElementById('file-input');
+  if(fi) fi.addEventListener('change',function(e){
+    if(e.target.files[0]) processFile(e.target.files[0]);
+    e.target.value = ''; // reset so same file can be selected again
+  });
+  var dz=document.getElementById('drop-zone');
+  if(dz){
+    dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('drag-over');});
+    dz.addEventListener('dragleave',function(){dz.classList.remove('drag-over');});
+    dz.addEventListener('drop',function(e){e.preventDefault();dz.classList.remove('drag-over');if(e.dataTransfer.files[0])processFile(e.dataTransfer.files[0]);});
+  }
+  var ds=document.getElementById('dec-sheet-drop');
+  if(ds){
+    ds.addEventListener('dragover',function(e){e.preventDefault();ds.classList.add('drag-over');});
+    ds.addEventListener('dragleave',function(){ds.classList.remove('drag-over');});
+    ds.addEventListener('drop',function(e){e.preventDefault();ds.classList.remove('drag-over');if(e.dataTransfer.files[0])decSetSheet(e.dataTransfer.files[0]);});
+  }
+});
+
+var _pendingFile = null, _pendingWb = null;
+
+async function processFile(file) {
+  state._selectedSheets = null; state._wb = null;
+  state.filename = file.name.replace(/\.[^.]+$/, '') + '_higienizado';
+  try {
+    // Init cipher if needed — don't block on vault being slow
+    if (!Object.keys(orgMaskCache).length) {
+      try { await initCryptoKey(); } catch(e) { console.warn('initCryptoKey:', e); }
+    }
+    var buf=await file.arrayBuffer();
+    var wb=XLSX.read(buf,{type:'array',cellDates:false,cellText:true,raw:true});
+
+    // If multiple sheets, show selector first
+    if(wb.SheetNames.length > 1) {
+      _pendingFile = file; _pendingWb = wb;
+      showSheetSelector(wb);
+      return;
+    }
+
+    // Single sheet: process directly
+    await processSheets(file, wb, [wb.SheetNames[0]]);
+  } catch(err){ showError(err.message); }
+}
+
+function showSheetSelector(wb) {
+  var list = document.getElementById('sheet-select-list');
+  var sub  = document.getElementById('sheet-select-sub');
+  sub.textContent = wb.SheetNames.length + ' abas encontradas — escolha qual processar';
+  list.innerHTML = wb.SheetNames.map(function(name, i) {
+    var ws   = wb.Sheets[name];
+    var range = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : null;
+    var rows  = range ? range.e.r : 0;
+    var cols  = range ? range.e.c + 1 : 0;
+    return '<div class="sheet-item" onclick="selectSheet(' + i + ')">' +
+      '<input type="radio" name="sheet-radio" id="sheet-chk-' + i + '" value="' + i + '" ' + (i===0?'checked':'') + ' onclick="event.stopPropagation();">' +
+      '<div>' +
+        '<div class="sheet-item-name">📋 ' + escHtml(name) + '</div>' +
+      '</div>' +
+      '<span class="sheet-item-meta">' + rows + ' linhas · ' + cols + ' colunas</span>' +
+    '</div>';
+  }).join('');
+  updateSheetSummary();
+  showScreen('sheet-select');
+}
+
+function selectSheet(i) {
+  var radio = document.getElementById('sheet-chk-' + i);
+  if (radio) radio.checked = true;
+  updateSheetSummary();
+}
+
+function updateSheetSummary() {
+  var total   = _pendingWb ? _pendingWb.SheetNames.length : 0;
+  var checked = 0;
+  for (var i = 0; i < total; i++) {
+    var chk = document.getElementById('sheet-chk-' + i);
+    if (chk && chk.checked) checked++;
+  }
+  var radio = document.querySelector('input[name="sheet-radio"]:checked');
+  var name = radio ? _pendingWb.SheetNames[parseInt(radio.value)] : '—';
+  document.getElementById('sheet-select-summary').textContent = 'Aba selecionada: ' + name;
+}
+
+
+
+async function confirmSheetSelection() {
+  if (!_pendingWb) return;
+  var radio = document.querySelector('input[name="sheet-radio"]:checked');
+  if (!radio) { alert('Selecione uma aba.'); return; }
+  var selected = [_pendingWb.SheetNames[parseInt(radio.value)]];
+  await processSheets(_pendingFile, _pendingWb, selected);
+}
+
+async function processSheets(file, wb, sheetNames) {
+  // Store which sheets to process; process each independently
+  state._selectedSheets = sheetNames;
+  state._wb = wb;
+  state.filename = file.name.replace(/\.[^.]+$/, '') + '_higienizado';
+
+  // Process first selected sheet to show review
+  // All sheets share the same detection run per-sheet when downloading
+  var firstSheet = sheetNames[0];
+  showScreen('processing');
+  setProgress(10, 'Lendo aba "' + firstSheet + '"...');
+  try {
+    if (!vault.connected) await initCryptoKey();
+    // For CSV: parse as plain text — no date/type conversion
+    var headers, rows;
+    if (file && /\.csv$/i.test(file.name)) {
+      var csvBuf   = await file.arrayBuffer();
+      var csvText  = new TextDecoder('utf-8').decode(csvBuf);
+      var delim    = (csvText.match(/;/g)||[]).length > (csvText.match(/,/g)||[]).length ? ';' : ',';
+      var rawParsed = csvToRaw(csvText, delim);
+      if (rawParsed.length < 2) throw new Error('Planilha vazia.');
+      headers = rawParsed[0].map(String);
+      rows    = rawParsed.slice(1);
+    } else {
+      var wsData = wb.Sheets[firstSheet];
+      var rawParsed = sheetToRaw(wsData, false);
+      if (rawParsed.length < 2) throw new Error('Aba "' + firstSheet + '" está vazia.');
+      headers = rawParsed[0].map(String);
+      rows    = rawParsed.slice(1);
+    }
+    state.headers = headers; state.originalData = rows;
+    state._currentSheetName = firstSheet;
+    state._originalWs = wb ? wb.Sheets[firstSheet] : null; // keep original ws for cell-level copy
+
+    stepDone(1); setProgress(25, 'Detectando com IA...');
+    var aiDetected = await analyzeWithAI(headers);
+    stepDone(2); setProgress(60, 'Combinando detecções...');
+    var sensitiveMap = new Map();
+    // LOCAL header detection runs FIRST — pattern rules are more reliable than AI for known types
+    function localType(h) {
+      var l = h.toLowerCase();
+      if(l.includes('cpf')) return 'CPF';
+      if(l.includes('cnpj')) return 'CNPJ';
+      if(l.match(/fone|celular|tel|phone|mobile|whatsapp/)) return 'PHONE';
+      if(l.match(/email|e-mail|mail/)) return 'EMAIL';
+      if(l.match(/nome|name|razao|fantasia|trading|client|empresa/)) return 'COMPANY';
+      if(l.match(/cartao|card|conta|agencia|banco/)) return 'BANK';
+      return null;
+    }
+    // Apply localType to ALL headers (not filtered by SENSITIVE_HEADERS list)
+    headers.filter(h=>!isNonSensitive(h)).forEach(function(h){
+      var type = localType(h);
+      if(type) sensitiveMap.set(h,{type:type,action:'hash',reason:'Cabeçalho detectado',source:'LOCAL'});
+    });
+    // AI fills in columns the local rules didn't catch (e.g. unusual naming)
+    if (aiDetected && Array.isArray(aiDetected)) aiDetected.forEach(function(r){
+      if(r.column && headers.includes(r.column) && !sensitiveMap.has(r.column))
+        sensitiveMap.set(r.column,{type:r.type,action:r.action||'hash',reason:r.reason||'IA',source:'AI'});
+    });
+    detectSensitiveByContent(headers,rows).forEach(function(info,h){ if(!sensitiveMap.has(h)) sensitiveMap.set(h,{type:info.type.toUpperCase(),action:'hash',reason:'Conteúdo ('+info.count+' ocorrências)',source:'CONTENT'}); });
+    applyCommunityDetection(headers, rows, sensitiveMap);
+    state.pendingColumns = headers.map(function(col,ci){ if(sensitiveMap.has(col)){var info=sensitiveMap.get(col);return Object.assign({column:col,colIdx:ci,enabled:true},info);}return{column:col,colIdx:ci,type:null,action:'hash',reason:null,source:null,enabled:false}; });
+
+    // Show sheet context in review subtitle if multiple sheets
+    if (sheetNames.length > 1) {
+      document.querySelector('.review-subtitle').textContent =
+        'Configuração aplicada a todas as ' + sheetNames.length + ' abas selecionadas';
+    }
+
+    stepDone(3); setProgress(90, 'Pronto para revisão...');
+    await delay(300); stepDone(4); stepDone(5); setProgress(100, 'Revise →');
+    await delay(400);
+    renderReview(); showScreen('review');
+  } catch(err){
+    console.error('processFile error:', err);
+    showScreen('upload');
+    // Show error on drop zone
+    var dz = document.getElementById('drop-zone');
+    if (dz) {
+      dz.style.borderColor = 'var(--red)';
+      dz.querySelector('.upload-title').textContent = '✗ Erro: ' + err.message;
+      dz.querySelector('.upload-sub').textContent = 'Clique para tentar novamente';
+      setTimeout(function(){ dz.style.borderColor=''; dz.querySelector('.upload-title').textContent='Envie sua planilha para proteger'; dz.querySelector('.upload-sub').textContent='Arraste & solte · xlsx · xls · csv · tsv'; }, 4000);
+    }
+  }
+}
+
+// ─── REVIEW ───────────────────────────────────────────────────────────────────
+function renderReview() {
+  var container=document.getElementById('review-rows');
+  var ACTION_OPTIONS=[{value:'hash',label:'Proteger (cifrar)'},{value:'remove_col',label:'Remover coluna'}];
+  container.innerHTML=state.pendingColumns.map(function(col,idx){
+    var samples=state.originalData.slice(0,5).map(r=>String(r[col.colIdx]??'').trim()).filter(Boolean).filter(function(v,i,a){return a.indexOf(v)===i;}).slice(0,3).join(' · ');
+    var typePill=col.type?'<span class="type-pill sensitive">'+col.type+'</span>'+(col.source==='COMMUNITY'?'<span class="review-community-badge">🌐</span>':''):'<span class="type-pill ok">Não sensível</span>';
+    var actionOpts=ACTION_OPTIONS.map(function(o){return '<option value="'+o.value+'"'+(col.action===o.value?' selected':'')+'>'+o.label+'</option>';}).join('');
+    return '<div class="review-row'+(col.enabled?'':' inactive')+(col.action==='remove_col'?' remove-col-row':'')+'" id="rrow-'+idx+'">'+
+      '<div class="rc"><div class="col-name">'+escHtml(col.column)+'</div><div class="col-samples">'+escHtml(samples)+'</div></div>'+
+      '<div class="rc">'+typePill+'</div>'+
+      '<div class="rc" style="font-family:var(--mono);font-size:10px;color:var(--text-muted);">'+escHtml(samples||'—')+'</div>'+
+      '<div class="rc"><select class="action-select" id="action-'+idx+'" '+(col.enabled?'':'disabled')+' onchange="updateReviewAction('+idx+',this.value)">'+actionOpts+'</select></div>'+
+      '<div class="rc toggle-wrap"><label class="toggle"><input type="checkbox" '+(col.enabled?'checked':'')+' onchange="toggleReviewCol('+idx+',this.checked)"><span class="toggle-track"></span><span class="toggle-thumb"></span></label></div>'+
+    '</div>';
+  }).join('');
+  updateReviewSummary();
+}
+
+function toggleReviewCol(idx, checked) {
+  state.pendingColumns[idx].enabled=checked;
+  var row=document.getElementById('rrow-'+idx), sel=document.getElementById('action-'+idx);
+  row.classList.toggle('inactive',!checked); sel.disabled=!checked;
+  updateReviewSummary();
+  var col=state.pendingColumns[idx];
+  if(checked&&!col.type&&vault.connected){_commPromptIdx=idx;showCommunityPrompt(col.column);}
+}
+
+function updateReviewAction(idx,value) { state.pendingColumns[idx].action=value; document.getElementById('rrow-'+idx).classList.toggle('remove-col-row',value==='remove_col'); }
+function updateReviewSummary() { var active=state.pendingColumns.filter(c=>c.enabled); document.getElementById('review-summary').innerHTML='<strong>'+active.length+'</strong> coluna(s) de <strong>'+state.pendingColumns.length+'</strong>'; }
+
+async function applyFromReview() {
+  state.sensitiveColumns=state.pendingColumns.filter(c=>c.enabled);
+  var removedIdx=new Set(state.sensitiveColumns.filter(c=>c.action==='remove_col').map(c=>c.colIdx));
+  state.outputHeaders=state.headers.filter((_,i)=>!removedIdx.has(i));
+
+  // Collect all unique values to mask in one batch
+  var toMask = [];
+  var activeCols = state.sensitiveColumns.filter(c=>c.action!=='remove_col');
+  activeCols.forEach(function(col) {
+    state.originalData.forEach(function(row) {
+      var v = String(row[col.colIdx] ?? '').trim();
+      if (v) toMask.push({ value: v, type: col.type||'OTHER_PII', colName: col.column||'' });
+    });
+  });
+  // Deduplicate
+  var seen = {}, uniqueItems = [];
+  toMask.forEach(function(it) {
+    if (!seen[it.value]) { seen[it.value] = true; uniqueItems.push(it); }
+  });
+
+  // Send batch to Vault — all masking logic lives there
+  var maskMap = await batchMask(uniqueItems);
+
+  var sanitized=[], masked=0;
+  for (var row of state.originalData) {
+    var newRow=[];
+    for (var i=0; i<state.headers.length; i++) {
+      if(removedIdx.has(i)) continue;
+      var col=state.sensitiveColumns.find(c=>c.colIdx===i);
+      if(col&&col.action!=='remove_col'){
+        var v=String(row[i]??'').trim();
+        if(v){ newRow.push(maskMap[v] !== undefined ? maskMap[v] : getMasked(v, col.type||'OTHER_PII', col.column||'')); masked++; }
+        else newRow.push(row[i]);
+      } else newRow.push(row[i]);
+    }
+    sanitized.push(newRow);
+  }
+  state.sanitizedData=sanitized;
+
+  // If multi-sheet: process other sheets with same column detection
+  if (state._selectedSheets && state._selectedSheets.length > 1 && state._wb) {
+    state._allSheetsData = {};
+    state._allSheetsData[state._currentSheetName] = {
+      headers: state.outputHeaders, rows: sanitized
+    };
+    // Process remaining sheets silently
+    for (var si = 1; si < state._selectedSheets.length; si++) {
+      var sName = state._selectedSheets[si];
+      var sWs   = state._wb.Sheets[sName];
+      var sRaw  = sheetToRaw(sWs);
+      if (sRaw.length < 2) continue;
+      var sHdrs = sRaw[0].map(String);
+      var sRows = sRaw.slice(1);
+      // Find which column indices to protect (by name match)
+      var sRemoved = new Set();
+      var sSanitized = [];
+      var sProtected = state.sensitiveColumns.filter(function(c){ return sHdrs.includes(c.column); });
+      var sRemovedNames = new Set(state.sensitiveColumns.filter(function(c){ return c.action==='remove_col' && sHdrs.includes(c.column); }).map(function(c){ return c.column; }));
+      var sOutHdrs = sHdrs.filter(function(h){ return !sRemovedNames.has(h); });
+      // Collect unique values for this sheet
+      var sToMask = [], sSeen = {};
+      sProtected.forEach(function(col) {
+        var ci = sHdrs.indexOf(col.column);
+        if (ci < 0) return;
+        sRows.forEach(function(r) {
+          var v = String(r[ci]||'').trim();
+          if (v && !sSeen[v]) { sSeen[v] = true; sToMask.push({value:v, type:col.type||'OTHER_PII', colName:col.column}); }
+        });
+      });
+      var sMaskMap = await batchMask(sToMask);
+      for (var ri = 0; ri < sRows.length; ri++) {
+        var sRow = [];
+        for (var ci = 0; ci < sHdrs.length; ci++) {
+          var h = sHdrs[ci];
+          if (sRemovedNames.has(h)) continue;
+          var col = sProtected.find(function(c){ return c.column===h && c.action!=='remove_col'; });
+          var v = String(sRows[ri][ci] !== undefined ? sRows[ri][ci] : '').trim();
+          sRow.push(col && v ? (sMaskMap[v]||v) : sRows[ri][ci]);
+        }
+        sSanitized.push(sRow);
+      }
+      state._allSheetsData[sName] = { headers: sOutHdrs, rows: sSanitized };
+    }
+  }
+
+  state.stats={totalRows:state.originalData.length,totalCols:state.outputHeaders.length,sensitiveCols:state.sensitiveColumns.filter(c=>c.action!=='remove_col').length,removedCols:removedIdx.size,maskedCells:masked};
+  renderResults(); showScreen('results');
+}
+
+// ─── RESULTS ──────────────────────────────────────────────────────────────────
+function renderResults() {
+  var s=state.stats;
+  document.getElementById('stats-row').innerHTML=
+    '<div class="stat-card"><div class="stat-value green">'+s.totalRows+'</div><div class="stat-label">Linhas</div></div>'+
+    '<div class="stat-card"><div class="stat-value green">'+s.totalCols+'</div><div class="stat-label">Colunas (saída)</div></div>'+
+    '<div class="stat-card"><div class="stat-value red">'+s.sensitiveCols+'</div><div class="stat-label">Protegidas</div></div>'+
+    '<div class="stat-card"><div class="stat-value blue">'+s.maskedCells+'</div><div class="stat-label">Células mascaradas</div></div>';
+  var list=document.getElementById('detection-list');
+  var typeOptions = ['COMPANY','NAME','CPF','CNPJ','PHONE','EMAIL','ADDRESS','BANK','OTHER_PII'];
+  list.innerHTML=state.sensitiveColumns.filter(c=>c.action!=='remove_col').map(function(c,i){
+    var opts = typeOptions.map(function(t){
+      return '<option value="'+t+'"'+(c.type===t?' selected':'')+'>'+t+'</option>';
+    }).join('');
+    return '<div class="detection-item">'+
+      '<span class="detection-col">'+escHtml(c.column)+'</span>'+
+      '<select class="type-select" data-idx="'+i+'" onchange="changeDetectionType(this)">'+opts+'</select>'+
+      '<span class="detection-action" style="margin-left:auto;">'+escHtml(c.reason||'')+'</span>'+
+    '</div>';
+  }).join('')||'<div style="font-family:var(--mono);font-size:12px;color:var(--text-muted);">Nenhuma coluna protegida.</div>';
+  renderDiffTable();
+  switchTab('detection');
+}
+
+function changeDetectionType(sel) {
+  var idx = parseInt(sel.dataset.idx);
+  var col = state.sensitiveColumns.filter(function(c){ return c.action!=='remove_col'; })[idx];
+  if (!col) return;
+  col.type = sel.value;
+  // Also update in pendingColumns
+  var pc = state.pendingColumns.find(function(p){ return p.column === col.column; });
+  if (pc) pc.type = sel.value;
+}
+
+function renderDiffTable() {
+  var table=document.getElementById('table-diff');
+  var diffIdx=state.sensitiveColumns.filter(c=>c.action!=='remove_col').map(c=>c.colIdx).filter(i=>state.outputHeaders.includes(state.headers[i]));
+  if(!diffIdx.length){table.innerHTML='<tr><td style="padding:20px;font-family:var(--mono);font-size:12px;color:var(--text-muted);">Nenhuma coluna para comparar.</td></tr>';return;}
+  var displayRows=Math.min(state.originalData.length,50);
+  table.innerHTML='<thead><tr><th>Coluna</th><th>Original</th><th>Protegido</th></tr></thead><tbody>'+
+    state.originalData.slice(0,displayRows).flatMap(function(row,ri){
+      return diffIdx.map(function(ci){
+        return '<tr><td style="color:var(--text-muted)">'+escHtml(state.headers[ci])+'</td>'+
+          '<td><span class="cell-original">'+escHtml(String(row[ci]??''))+'</span></td>'+
+          '<td><span class="cell-hash">'+escHtml(String(state.sanitizedData[ri][state.outputHeaders.indexOf(state.headers[ci])]??''))+'</span></td></tr>';
+      });
+    }).join('')+'</tbody>';
+}
+
+// ─── DOWNLOAD ─────────────────────────────────────────────────────────────────
+function dlSetStep(idx) {
+  for(var i=0;i<5;i++){
+    var el=document.getElementById('dl-step-'+i), icon=document.getElementById('dl-icon-'+i);
+    if(i<idx){el.className='dl-step done';icon.textContent='✓';}
+    else if(i===idx){el.className='dl-step active';icon.innerHTML='<div class="proc-spinner" style="width:12px;height:12px;"></div>';}
+    else{el.className='dl-step';icon.textContent=i+1;}
+  }
+  document.getElementById('dl-progress').style.width=Math.round((idx/4)*80)+'%';
+}
+function dlDone() {
+  for(var i=0;i<5;i++){document.getElementById('dl-step-'+i).className='dl-step done';document.getElementById('dl-icon-'+i).textContent='✓';}
+  document.getElementById('dl-progress').style.width='100%';
+  document.getElementById('dl-status').textContent='Arquivo pronto!';
+}
+
+async function downloadAndReveal() {
+  var btn=document.getElementById('btn-download-main');
+  var overlay=document.getElementById('dl-overlay');
+  overlay.classList.remove('hidden');
+
+  // Step 1: init cipher
+  dlSetStep(0); document.getElementById('dl-status').textContent='Iniciando...';
+  if(!vault.connected) await initCryptoKey();
+  await new Promise(r=>setTimeout(r,100));
+
+  // Step 2: save mask dict + file hash to Vault
+  dlSetStep(1); document.getElementById('dl-status').textContent='Salvando no Vault...';
+  if(vault.connected && state.sanitizedData.length){
+    try {
+      // Sync updated dictionary to Vault (one call — fast)
+      await syncDictToVault();
+      // Register file hash
+      var hdrs=state.outputHeaders||state.headers;
+      var fhash=await fileHash({headers:hdrs,rows:state.sanitizedData});
+      // Include column→type map so decrypt knows which unmask function to use
+      var colTypeMap = {};
+      state.sensitiveColumns.forEach(function(c){ if(c.action!=='remove_col') colTypeMap[c.column]=c.type||'OTHER_PII'; });
+      await vaultCall({action:'saveCipher',fileHash:fhash,cipher:JSON.stringify({d:orgMaskCache,r:orgUnmaskCache,ct:colTypeMap}),filename:state.filename,totalRows:state.stats.totalRows,totalCols:state.stats.totalCols});
+    } catch(e){ console.warn('Vault save silenced:',e); }
+  }
+  await new Promise(r=>setTimeout(r,100));
+
+  // Step 3: build sheet(s)
+  dlSetStep(2);
+  var totalSheets = state._allSheetsData ? Object.keys(state._allSheetsData).length : 1;
+  document.getElementById('dl-status').textContent = 'Montando ' + totalSheets + ' aba(s)...';
+  var wb = XLSX.utils.book_new();
+
+  // Build a column-index → masked-column map so we know which cols changed
+  var maskedColSet = new Set(
+    state.sensitiveColumns
+      .filter(function(c){ return c.action !== 'remove_col'; })
+      .map(function(c){ return c.colIdx; })
+  );
+  var removedColSet = new Set(
+    state.sensitiveColumns
+      .filter(function(c){ return c.action === 'remove_col'; })
+      .map(function(c){ return c.colIdx; })
+  );
+
+  function addProtectedSheet(shName, originalWs, hdrs, rows) {
+    // Strategy: clone the original worksheet (preserving cell types, formats,
+    // date serials, etc.) then ONLY overwrite the cells in masked columns.
+    // Columns that were not touched are byte-for-byte identical to the source.
+    var ws;
+    if (originalWs) {
+      // Deep-clone the original worksheet object
+      ws = {};
+      Object.keys(originalWs).forEach(function(k) {
+        if (k === '!ref' || k === '!merges' || k === '!cols' || k === '!rows' || k[0] === '!') {
+          ws[k] = originalWs[k];
+        } else {
+          var c = originalWs[k];
+          ws[k] = Object.assign({}, c);
+        }
+      });
+
+      // Build mapping: original col index → output col index (after removals)
+      var origHeaders = state.headers;
+      var outColMap = {}; // origColIdx → outColIdx
+      var outIdx = 0;
+      for (var oi = 0; oi < origHeaders.length; oi++) {
+        if (!removedColSet.has(oi)) { outColMap[oi] = outIdx; outIdx++; }
+      }
+
+      // Remove cells belonging to removed columns, shift remaining columns
+      var origRange = XLSX.utils.decode_range(originalWs['!ref']);
+      var newWs = { '!ref': '' };
+      if (originalWs['!merges']) newWs['!merges'] = originalWs['!merges'];
+      if (originalWs['!cols'])   newWs['!cols']   = originalWs['!cols'];
+      if (originalWs['!rows'])   newWs['!rows']   = originalWs['!rows'];
+
+      var maxOutC = -1;
+      for (var R = origRange.s.r; R <= origRange.e.r; R++) {
+        for (var C = origRange.s.c; C <= origRange.e.c; C++) {
+          var origColIdx = C - origRange.s.c;
+          if (removedColSet.has(origColIdx)) continue; // drop removed cols
+          var outC = (outColMap[origColIdx] !== undefined) ? outColMap[origColIdx] : origColIdx;
+          if (outC > maxOutC) maxOutC = outC;
+          var origAddr = XLSX.utils.encode_cell({ r: R, c: C });
+          var newAddr  = XLSX.utils.encode_cell({ r: R, c: outC });
+          var origCell = originalWs[origAddr];
+          if (!origCell) continue;
+
+          if (maskedColIdx.has(origColIdx) && R > origRange.s.r) {
+            // This is a data row (not header) in a masked column — write masked string
+            var dataRowIdx = R - origRange.s.r - 1;
+            var outColPos  = hdrs.indexOf(origHeaders[origColIdx]);
+            var maskedVal  = (outColPos >= 0 && rows[dataRowIdx]) ? rows[dataRowIdx][outColPos] : null;
+            if (maskedVal !== null && maskedVal !== undefined) {
+              newWs[newAddr] = { t: 's', v: String(maskedVal), w: String(maskedVal) };
+            } else {
+              newWs[newAddr] = Object.assign({}, origCell);
+            }
+          } else {
+            // Non-masked cell (or header row): copy as-is, preserving type/format
+            newWs[newAddr] = Object.assign({}, origCell);
+          }
+        }
+      }
+      newWs['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: origRange.e.r, c: maxOutC } });
+      ws = newWs;
+    } else {
+      // Fallback: no original ws available — use aoa_to_sheet but force all cells to text
+      var wsData = [hdrs].concat(rows);
+      ws = XLSX.utils.aoa_to_sheet(wsData, { raw: true });
+      // Force every cell to string type so SheetJS doesn't re-infer dates
+      Object.keys(ws).forEach(function(addr) {
+        if (addr[0] === '!') return;
+        var cell = ws[addr];
+        if (cell) { cell.t = 's'; delete cell.z; }
+      });
+    }
+    XLSX.utils.book_append_sheet(wb, ws, shName);
+  }
+
+  // maskedColIdx needs to be accessible inside addProtectedSheet
+  var maskedColIdx = maskedColSet;
+
+  if (state._allSheetsData && Object.keys(state._allSheetsData).length > 1) {
+    Object.keys(state._allSheetsData).forEach(function(name) {
+      var d = state._allSheetsData[name];
+      var origWs = state._wb ? state._wb.Sheets[name] : null;
+      addProtectedSheet(name, origWs, d.headers, d.rows);
+    });
+  } else {
+    addProtectedSheet('Higienizado', state._originalWs || null, state.outputHeaders||state.headers, state.sanitizedData);
+  }
+  // Add hidden _DS_META with column→type map (non-sensitive, enables reliable decrypt)
+  var metaRows = [['column','type']];
+  (state.sensitiveColumns||[]).forEach(function(c){
+    if(c.action!=='remove_col') metaRows.push([c.column, c.type||'OTHER_PII']);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(metaRows), '_DS_META');
+  wb.Workbook = wb.Workbook || {}; wb.Workbook.Sheets = wb.Workbook.Sheets || [];
+  wb.Workbook.Sheets[wb.SheetNames.length - 1] = { Hidden: 1 };
+  await new Promise(r=>setTimeout(r,80));
+
+  // Step 4: compress
+  dlSetStep(3); document.getElementById('dl-status').textContent='Comprimindo...';
+  var wbout=XLSX.write(wb,{bookType:'xlsx',type:'array',compression:true,bookSST:true,cellStyles:false});
+  await new Promise(r=>setTimeout(r,50));
+
+  // Step 5: download
+  dlSetStep(4); document.getElementById('dl-status').textContent='Gerando download...';
+  var blob=new Blob([wbout],{type:'application/octet-stream'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a'); a.href=url; a.download=state.filename+'.xlsx';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+
+  dlDone();
+  await new Promise(r=>setTimeout(r,800));
+  overlay.classList.add('hidden');
+}
+
+// ─── DECRYPT ──────────────────────────────────────────────────────────────────
+function decSetSheet(file) {
+  decState.sheetFile = file;
+  var drop = document.getElementById('dec-sheet-drop');
+  if (drop) {
+    drop.style.borderColor = 'var(--green)';
+    drop.style.pointerEvents = 'none';
+    drop.innerHTML =
+      '<div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:8px 0;">' +
+        '<div class="proc-spinner" style="width:28px;height:28px;border-width:3px;"></div>' +
+        '<div class="dec-drop-title" style="color:var(--green);">' + escHtml(file.name) + '</div>' +
+        '<div class="dec-drop-sub">Lendo arquivo...</div>' +
+      '</div>';
+  }
+  autoDecrypt(file);
+}
+
+function setDropStatus(icon, title, sub, color) {
+  var drop = document.getElementById('dec-sheet-drop');
+  if (!drop) return;
+  drop.innerHTML =
+    '<div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:8px 0;">' +
+      '<div style="font-size:28px;">' + icon + '</div>' +
+      '<div class="dec-drop-title" style="color:' + color + ';">' + escHtml(title) + '</div>' +
+      '<div class="dec-drop-sub">' + escHtml(sub) + '</div>' +
+    '</div>';
+}
+
+async function autoDecrypt(file) {
+  var msg=document.getElementById('dec-status-msg');
+  msg.style.cssText='margin-top:14px;padding:12px 16px;border-radius:10px;font-family:var(--mono);font-size:12px;display:flex;align-items:center;gap:10px;background:rgba(103,162,45,.07);border:1px solid rgba(103,162,45,.25);color:var(--text-muted);';
+  msg.innerHTML='<div class="proc-spinner" style="flex-shrink:0;"></div><span>Buscando cifra no Vault...</span>';
+  msg.classList.remove('hidden');
+  try {
+    var buf=await file.arrayBuffer();
+    var wb=XLSX.read(buf,{type:'array',cellDates:false,cellText:true,raw:true});
+    var raw;
+    if (/\.csv$/i.test(file.name)) {
+      var _ct = new TextDecoder('utf-8').decode(buf);
+      var _dl = (_ct.match(/;/g)||[]).length > (_ct.match(/,/g)||[]).length ? ';' : ',';
+      raw = csvToRaw(_ct, _dl);
+    } else {
+      raw = sheetToRaw(wb.Sheets[wb.SheetNames[0]], false);
+    }
+    if(raw.length<2){showDecError('Arquivo vazio.');return;}
+    // Read column type map from embedded _DS_META sheet
+    var embeddedColTypes={};
+    var metaWs=wb.Sheets['_DS_META'];
+    if(metaWs){
+      XLSX.utils.sheet_to_json(metaWs,{header:1,defval:''}).slice(1).forEach(function(r){
+        if(r[0]&&r[1]) embeddedColTypes[String(r[0])]=String(r[1]);
+      });
+    }
+    var fhash=await fileHash({headers:raw[0].map(String),rows:raw.slice(1)});
+    var data=await vaultCall({action:'getCipherByHash',fileHash:fhash});
+    if(data.ok&&data.cipher){
+      var loaded=deserializeCipherMap(data.cipher);
+      if(loaded&&loaded.d){
+        if (!loaded.ct || !Object.keys(loaded.ct).length) loaded.ct = embeddedColTypes;
+        window._decFileCipher=loaded;
+        decState.sheetFile=file;
+        setDropStatus('✅', file.name, 'Dicionário encontrado! Descriptografando...', 'var(--green)');
+        setTimeout(runBulkDecrypt, 600); return;
+      }
+    }
+    if(Object.keys(orgMaskCache).length || Object.keys(embeddedColTypes).length){
+      window._decFileCipher={d:orgMaskCache,r:orgUnmaskCache,ct:embeddedColTypes};
+      setDropStatus('⚠️', file.name, 'Usando cifra da sessão atual. Descriptografando...', 'var(--amber,#f59e0b)');
+      setTimeout(runBulkDecrypt, 600); return;
+    }
+    showDecError('Cifra não encontrada. Proteja o arquivo com sua conta para salvar automaticamente.');
+  } catch(e){ showDecError('Erro: '+e.message); }
+}
+
+function showDecError(txt) {
+  var drop = document.getElementById('dec-sheet-drop');
+  if (!drop) return;
+  drop.style.borderColor = 'var(--red)';
+  drop.style.pointerEvents = '';
+  var d = document.createElement('div');
+  d.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:10px;padding:8px 0;';
+  var icon = document.createElement('span');
+  icon.style.fontSize = '28px'; icon.textContent = '✗';
+  var title = document.createElement('div');
+  title.className = 'dec-drop-title'; title.style.color = 'var(--red)'; title.textContent = txt;
+  var retry = document.createElement('div');
+  retry.className = 'dec-drop-sub'; retry.style.cursor = 'pointer'; retry.style.textDecoration = 'underline';
+  retry.textContent = 'Clique para tentar outro arquivo';
+  var inp = document.createElement('input');
+  inp.type = 'file'; inp.style.display = 'none'; inp.accept = '.xlsx,.xls,.csv,.tsv';
+  inp.onchange = function(ev){ if(ev.target.files[0]) decSetSheet(ev.target.files[0]); };
+  retry.onclick = function(){ inp.click(); };
+  d.appendChild(icon); d.appendChild(title); d.appendChild(retry); d.appendChild(inp);
+  drop.innerHTML = ''; drop.appendChild(d);
+}
+
+async function runBulkDecrypt() {
+  var progress=document.getElementById('dec-bulk-progress'), resultWrap=document.getElementById('dec-bulk-result');
+  var statusMsg=document.getElementById('dec-status-msg'); if(statusMsg) statusMsg.classList.add('hidden');
+  progress.classList.remove('hidden'); resultWrap.classList.add('hidden');
+  document.getElementById('dec-bulk-bar').style.width='10%';
+  document.getElementById('dec-bulk-status').textContent='Lendo planilha...';
+  try {
+    var buf=await decState.sheetFile.arrayBuffer();
+    var wb=XLSX.read(buf,{type:'array',cellDates:false,cellText:true,raw:true});
+    var raw;
+    if (decState.sheetFile && /\.csv$/i.test(decState.sheetFile.name)) {
+      var _ct2 = new TextDecoder('utf-8').decode(buf);
+      var _dl2 = (_ct2.match(/;/g)||[]).length > (_ct2.match(/,/g)||[]).length ? ';' : ',';
+      raw = csvToRaw(_ct2, _dl2);
+    } else {
+      raw = sheetToRaw(wb.Sheets[wb.SheetNames[0]], false);
+    }
+    if(raw.length<2) throw new Error('Planilha vazia.');
+    var headers=raw[0].map(String), rows=raw.slice(1);
+    decState.headers=headers;
+    document.getElementById('dec-bulk-bar').style.width='40%';
+    document.getElementById('dec-bulk-status').textContent='Descriptografando '+rows.length+' linhas...';
+    var fileCipher=window._decFileCipher||(Object.keys(orgMaskCache).length?{d:orgMaskCache,r:orgUnmaskCache}:null);
+    if(!fileCipher){progress.classList.add('hidden');document.getElementById('dec-bulk-status').textContent='✗ Dicionário não encontrado.';return;}
+    var revDict  = fileCipher.r || {};
+    var colTypes = fileCipher.ct || {}; // column→type map
+
+    function decryptCell(val, colName) {
+      var s = String(val).trim(); if (!s) return val;
+      // 1. Semantic dict lookup (Trading, Generic, etc.)
+      if (revDict[s] !== undefined) return revDict[s];
+      // 2. Deterministic reverse by column type
+      var type = colTypes[colName] || '';
+      if (type === 'PHONE' || type === 'CPF')  return _unmaskCPF(s);   // same alternating rule
+      if (type === 'CNPJ')                      return _unmaskCNPJ(s);
+      return val;
+    }
+
+    var decrypted=[], total=rows.length, done=0;
+    for(var row of rows){
+      decrypted.push(row.map(function(cell, ci){ return decryptCell(cell, headers[ci]); }));
+      done++;
+      if(done%100===0){document.getElementById('dec-bulk-bar').style.width=Math.round(40+(done/total)*55)+'%';await new Promise(r=>setTimeout(r,0));}
+    }
+    decState.result=decrypted; decState.originalRows=rows;
+    document.getElementById('dec-bulk-bar').style.width='100%';
+    document.getElementById('dec-bulk-status').textContent='Concluído!';
+    await new Promise(r=>setTimeout(r,400));
+    progress.classList.add('hidden');
+    // Restore drop zone to allow processing another file
+    var drop2 = document.getElementById('dec-sheet-drop');
+    if (drop2) {
+      drop2.style.pointerEvents = '';
+      drop2.style.borderColor = 'var(--green)';
+      var d2 = document.createElement('div');
+      d2.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:10px;padding:8px 0;';
+      var inp2 = document.createElement('input');
+      inp2.type = 'file'; inp2.style.display = 'none';
+      inp2.accept = '.xlsx,.xls,.csv,.tsv';
+      inp2.onchange = function(ev){ if(ev.target.files[0]) decSetSheet(ev.target.files[0]); };
+      var lbl2 = document.createElement('div');
+      lbl2.className = 'dec-drop-sub'; lbl2.style.cursor = 'pointer';
+      lbl2.textContent = 'Processar outro arquivo';
+      lbl2.onclick = function(){ inp2.click(); };
+      d2.innerHTML = '<span style="font-size:24px;">✅</span>' +
+        '<div class="dec-drop-title" style="color:var(--green);">' + escHtml(decState.sheetFile.name) + '</div>';
+      d2.appendChild(lbl2); d2.appendChild(inp2);
+      drop2.innerHTML = ''; drop2.appendChild(d2);
+    }
+        var table=document.getElementById('dec-result-table');
+    table.innerHTML='<thead><tr>'+headers.map(h=>'<th>'+escHtml(h)+'</th>').join('')+'</tr></thead><tbody>'+
+      decrypted.slice(0,100).map(row=>'<tr>'+row.map(v=>'<td><span class="cell-masked">'+escHtml(String(v))+'</span></td>').join('')+'</tr>').join('')+'</tbody>';
+    resultWrap.classList.remove('hidden');
+  } catch(e){ progress.classList.add('hidden'); document.getElementById('dec-bulk-status').textContent='✗ Erro: '+e.message; }
+}
+
+function downloadDecrypted() {
+  var includeOrig = document.getElementById('dec-dl-original')?.checked;
+  var hdrs = decState.headers, dec = decState.result, orig = decState.originalRows || [];
+  var colTypes = (window._decFileCipher && window._decFileCipher.ct) || {};
+
+  // A column has tokens if: its type is in _DS_META (colTypes) OR
+  // any original value differs from the decrypted value
+  var fh = hdrs.map(function(h, ci) {
+    if (colTypes[h]) return true; // known sensitive column
+    return orig.some(function(r, ri) {
+      var origVal = String(r[ci] || '');
+      var decVal  = String((dec[ri] || [])[ci] || '');
+      return origVal !== decVal && origVal !== '';
+    });
+  });
+
+  var finalH = [...hdrs], finalR = dec.map(function(r){ return [...r]; });
+  if (includeOrig) {
+    hdrs.forEach(function(h, ci) {
+      if (!fh[ci]) return;
+      finalH.push(h + '_TOKEN');
+      finalR.forEach(function(r, ri) {
+        r.push(String((orig[ri] || [])[ci] || ''));
+      });
+    });
+  }
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([finalH, ...finalR]), 'Descriptografado');
+  var name = (decState.sheetFile?.name || 'planilha').replace(/\.[^.]+$/, '') + '_descriptografado.xlsx';
+  XLSX.writeFile(wb, name);
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+async function fileHash(data) {
+  var bytes=new TextEncoder().encode(JSON.stringify(data));
+  var buf=await crypto.subtle.digest('SHA-256',bytes);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// Read sheet preserving original text — no type conversion
+// For CSV: XLSX.js has no .w property, values come as inferred types
+// Solution: for CSV files, re-read the raw text and split manually
+function sheetToRaw(ws, isCsv) {
+  if (!ws || !ws['!ref']) return [];
+  var range = XLSX.utils.decode_range(ws['!ref']);
+  var rows = [];
+  for (var R = range.s.r; R <= range.e.r; R++) {
+    var row = [];
+    for (var C = range.s.c; C <= range.e.c; C++) {
+      var addr = XLSX.utils.encode_cell({ r: R, c: C });
+      var cell = ws[addr];
+      if (!cell || cell.v === undefined) { row.push(''); continue; }
+      // ALWAYS prefer cell.w — the formatted text Excel shows the user.
+      // For dates, cell.w = "4/10/2025 11:58:36 AM" (exactly as in Excel).
+      // For numbers, cell.w = "116.7". For text, cell.w = the raw string.
+      // Only fall back to String(cell.v) when cell.w is missing (very rare).
+      var val = (cell.w !== undefined && cell.w !== null && String(cell.w).trim() !== '')
+        ? String(cell.w)
+        : String(cell.v);
+      row.push(val);
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+// Parse CSV as plain text — no type inference, no date conversion
+function csvToRaw(text, delimiter) {
+  var delim = delimiter || ',';
+  var rows = [], lines = text.split(/\r?\n/);
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (!line.trim()) continue;
+    var row = [], cur = '', inQ = false;
+    for (var j = 0; j < line.length; j++) {
+      var c = line[j];
+      if (c === '"') { inQ = !inQ; }
+      else if (c === delim && !inQ) { row.push(cur); cur = ''; }
+      else { cur += c; }
+    }
+    row.push(cur);
+    rows.push(row);
+  }
+  return rows;
+}
+
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function delay(ms) { return new Promise(r=>setTimeout(r,ms)); }
+function spinnerHTML(msg) { return '<span style="display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--text-muted);"><span class="vault-spinner"></span>'+escHtml(msg)+'</span>'; }
+
+function showScreen(name) { ['upload','sheet-select','processing','review','results'].forEach(n=>document.getElementById('screen-'+n).classList.toggle('hidden',n!==name)); }
+function setProgress(pct,msg) { document.getElementById('progress-fill').style.width=pct+'%'; if(msg) document.getElementById('proc-status').textContent=msg; }
+function stepDone(n) { var el=document.getElementById('step-'+n); if(!el) return; el.className='proc-step done'; el.querySelector('.step-icon').textContent='✓'; var next=document.getElementById('step-'+(n+1)); if(next){next.className='proc-step active';next.querySelector('.step-icon').textContent='▶';} }
+function showError(msg) { showScreen('results'); var eb=document.getElementById('error-box'); eb.textContent='⚠ Erro: '+msg; eb.classList.remove('hidden'); }
+
+function switchTab(name) {
+  var names=['detection','diff','community'];
+  document.querySelectorAll('.tab').forEach(function(t,i){ t.classList.toggle('active',i===names.indexOf(name)); });
+  document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.toggle('active',p.id==='tab-'+name); p.style.display=p.id==='tab-'+name?'block':'none'; });
+  if(name==='community') loadCommunityTerms(true);
+}
+
+function setMode(mode) {
+  document.querySelectorAll('.mode-tab').forEach(function(t,i){ t.classList.toggle('active',(i===0&&mode==='protect')||(i===1&&mode==='decrypt')); });
+  document.getElementById('mode-protect').classList.toggle('hidden',mode!=='protect');
+  document.getElementById('mode-decrypt').classList.toggle('hidden',mode!=='decrypt');
+  if(mode==='decrypt'){ window._decFileCipher=null; decState={sheetFile:null,keyHex:null,result:null,headers:[],originalRows:[]}; var drop=document.getElementById('dec-sheet-drop'); if(drop){drop.style.borderColor='var(--border2)';drop.querySelector('.dec-drop-title').textContent='Selecione a planilha protegida';drop.querySelector('.dec-drop-sub').textContent='A cifra é encontrada automaticamente · xlsx · xls · csv · tsv';} document.getElementById('dec-status-msg').classList.add('hidden'); document.getElementById('dec-bulk-result').classList.add('hidden'); document.getElementById('dec-bulk-progress').classList.add('hidden'); }
+}
+
+function goBackToReview() {
+  // Re-render review with current pendingColumns (preserves user changes)
+  renderReview();
+  showScreen('review');
+}
+
+function resetApp() {
+  state={originalData:[],sanitizedData:[],headers:[],outputHeaders:[],sensitiveColumns:[],pendingColumns:[],stats:{},filename:'',_selectedSheets:null,_wb:null,_allSheetsData:null,_currentSheetName:null};
+  window._decFileCipher=null;
+  showScreen('upload');
+  document.getElementById('error-box').classList.add('hidden');
+  switchTab('detection');
+}
+
+function goToDecrypt() { resetApp(); setMode('decrypt'); }
+function openSupport() { document.getElementById('chat-window').style.display='flex'; }
+function closeSupport() { document.getElementById('chat-window').style.display='none'; }
+
+// ─── GATE ─────────────────────────────────────────────────────────────────────
+// (already defined above)
+
+</script>
+</head>
+<body>
+
+<!-- ══ GATE ═══════════════════════════════════════════════════════ -->
+<div id="screen-gate">
+  <div class="gate-card">
+    <img src="https://www.graodireto.com.br/assets/commons/logos/gd-logo-white.svg"
+         alt="Grão Direto" style="height:44px;margin-bottom:10px;" />
+    <div class="gate-title">Data Masking</div>
+    <div class="gate-sub">Sistema de proteção de dados confidenciais</div>
+    <div class="gate-domain">@graodireto.com.br</div>
+
+    <div id="gate-step-email">
+      <input class="gate-input" id="gate-email" type="email"
+        placeholder="seu@graodireto.com.br"
+        onkeydown="if(event.key==='Enter') gateRequestOTP()" />
+      <div id="gate-email-msg"></div>
+      <button class="gate-btn" onclick="gateRequestOTP()">Enviar código →</button>
+    </div>
+
+    <div id="gate-step-otp" style="display:none;">
+      <div style="font-family:var(--mono);font-size:12px;color:var(--text-muted);margin-bottom:16px;line-height:1.7;">
+        Código enviado para<br>
+        <strong id="gate-otp-email-display" style="color:var(--green);"></strong><br>
+        <span style="font-size:10px;">Válido por 10 minutos</span>
+      </div>
+      <input class="gate-input gate-otp-input" id="gate-otp" type="text"
+        inputmode="numeric" maxlength="6" placeholder="000000" />
+      <div id="gate-otp-msg"></div>
+      <button class="gate-btn" onclick="gateVerifyOTP()">Verificar →</button>
+      <div style="display:flex;justify-content:space-between;margin-top:8px;">
+        <button class="gate-back" onclick="gateBackToEmail()">← Outro e-mail</button>
+        <button class="gate-back" onclick="gateResend()">Reenviar código</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ APP ════════════════════════════════════════════════════════ -->
+<div id="app-root" class="app-hidden">
+
+<!-- Header -->
+<div class="header">
+  <img src="https://www.graodireto.com.br/assets/commons/logos/gd-logo-white.svg"
+       alt="Grão Direto" style="height:26px;flex-shrink:0;" />
+  <div>
+    <div class="header-title">Data Masking</div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);">Proteção de dados</div>
+  </div>
+  <div class="vault-status" onclick="openVaultModal('auto')" id="vault-status-pill">
+    <div class="vault-dot off" id="vault-dot"></div>
+    <span class="vault-label off" id="vault-label">Entrar</span>
+  </div>
+  <button class="support-btn" onclick="openSupport()">
+    <div class="pulse-dot"></div>Suporte
+  </button>
+</div>
+
+<!-- Vault Modal -->
+<div class="vault-overlay hidden" id="vault-overlay" onclick="closeVaultIfBg(event)">
+<div class="vault-modal">
+  <div class="vault-modal-head">
+    <span class="vault-modal-title" id="vault-modal-title">Vault</span>
+    <button class="vault-close" onclick="closeVault()">✕</button>
+  </div>
+  <div class="vault-modal-body" id="vault-modal-body"></div>
+</div>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- UPLOAD SCREEN -->
+  <div id="screen-upload">
+    <div class="mode-tabs">
+      <button class="mode-tab active" onclick="setMode('protect')">🛡️ Proteger</button>
+      <button class="mode-tab" onclick="setMode('decrypt')">🔓 Descriptografar</button>
+    </div>
+
+    <div id="mode-protect">
+      <div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" style="display:none" accept=".xlsx,.xls,.csv,.tsv" />
+        <span class="upload-icon">📊</span>
+        <div class="upload-title">Envie sua planilha para proteger</div>
+        <div class="upload-sub">Arraste & solte · xlsx · xls · csv · tsv</div>
+        <button class="upload-btn" onclick="event.stopPropagation();document.getElementById('file-input').click()">
+          📂 Selecionar Arquivo
+        </button>
+      </div>
+      <div class="shields-grid" style="margin-top:20px;">
+        <div class="shield-card"><div class="shield-badge" style="background:rgba(59,130,246,.15);">🔵</div><div><div class="shield-label">CPF / CNPJ</div><div class="shield-desc">Cifra de substituição</div></div></div>
+        <div class="shield-card"><div class="shield-badge" style="background:rgba(103,162,45,.15);">🟢</div><div><div class="shield-label">Telefone</div><div class="shield-desc">Cifra de substituição</div></div></div>
+        <div class="shield-card"><div class="shield-badge" style="background:rgba(239,68,68,.15);">🔴</div><div><div class="shield-label">Nome / Trading</div><div class="shield-desc">Cifra de substituição</div></div></div>
+        <div class="shield-card"><div class="shield-badge" style="background:rgba(168,85,247,.15);">🟣</div><div><div class="shield-label">E-mail</div><div class="shield-desc">Cifra de substituição</div></div></div>
+      </div>
+    </div>
+
+    <div id="mode-decrypt" class="hidden">
+      <div class="dec-drop" id="dec-sheet-drop"
+           onclick="document.getElementById('dec-sheet-input').click()">
+        <input type="file" id="dec-sheet-input" style="display:none"
+               accept=".xlsx,.xls,.csv,.tsv" onchange="decSetSheet(this.files[0])" />
+        <span class="dec-drop-icon">📊</span>
+        <div class="dec-drop-title">Selecione a planilha protegida</div>
+        <div class="dec-drop-sub">A cifra é encontrada automaticamente · xlsx · xls · csv · tsv</div>
+      </div>
+      <div id="dec-status-msg" class="hidden"
+           style="margin-top:14px;padding:12px 16px;border-radius:10px;font-family:var(--mono);font-size:12px;display:flex;align-items:center;gap:10px;"></div>
+      <div id="dec-bulk-progress" class="dec-progress hidden">
+        <div class="processing-bar" style="margin-bottom:0">
+          <div class="proc-header">
+            <div class="proc-spinner"></div>
+            <div class="proc-title" id="dec-bulk-status">Descriptografando...</div>
+          </div>
+          <div class="progress-track"><div class="progress-fill" id="dec-bulk-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div id="dec-bulk-result" class="dec-result-wrap hidden">
+        <div class="dec-result-header">
+          <span>✅ Planilha descriptografada</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="font-family:var(--mono);font-size:10px;color:var(--text-muted);display:flex;align-items:center;gap:5px;cursor:pointer;">
+              <input type="checkbox" id="dec-dl-original" style="accent-color:var(--green);" />
+              Incluir original (token)
+            </label>
+            <button class="key-btn" onclick="downloadDecrypted()">⬇ Baixar .xlsx</button>
+          </div>
+        </div>
+        <div class="table-scroll" style="max-height:380px;">
+          <table class="data-table" id="dec-result-table"></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHEET SELECT SCREEN -->
+  <div id="screen-sheet-select" class="hidden">
+    <div class="review-header">
+      <div>
+        <div class="review-title">📋 Selecionar abas</div>
+        <div class="review-subtitle" id="sheet-select-sub">Escolha quais abas processar</div>
+      </div>
+      <button class="new-file-btn" onclick="resetApp()">↩ Outro arquivo</button>
+    </div>
+    <div class="table-wrap" style="margin-bottom:18px;">
+      <div id="sheet-select-list" style="padding:8px 0;"></div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:12px;flex-wrap:wrap;gap:10px;">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);" id="sheet-select-summary">—</div>
+      <div style="display:flex;gap:8px;">
+
+        <button class="btn btn-primary" onclick="confirmSheetSelection()">Usar esta aba →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROCESSING SCREEN -->
+  <div id="screen-processing" class="hidden">
+    <div class="processing-bar">
+      <div class="proc-header">
+        <div class="proc-spinner" id="spinner"></div>
+        <div class="proc-title" id="proc-status">Analisando planilha...</div>
+        <div class="ai-badge">✦ IA</div>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+      </div>
+      <div class="proc-steps">
+        <div class="proc-step active" id="step-1"><span class="step-icon">▶</span> Lendo arquivo</div>
+        <div class="proc-step pending" id="step-2"><span class="step-icon">○</span> Detectando dados sensíveis com IA</div>
+        <div class="proc-step pending" id="step-3"><span class="step-icon">○</span> Combinando detecções</div>
+        <div class="proc-step pending" id="step-4"><span class="step-icon">○</span> Preparando revisão</div>
+        <div class="proc-step pending" id="step-5"><span class="step-icon">○</span> Pronto</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REVIEW SCREEN -->
+  <div id="screen-review" class="hidden">
+    <div class="review-header">
+      <div>
+        <div class="review-title">🔎 Revisar colunas</div>
+        <div class="review-subtitle">Ative/desative e ajuste antes de proteger</div>
+      </div>
+      <button class="new-file-btn" onclick="resetApp()">↩ Voltar ao início</button>
+    </div>
+    <div class="review-table-wrap">
+      <div class="review-row-head">
+        <div class="rh">Coluna</div>
+        <div class="rh">Tipo</div>
+        <div class="rh">Amostras</div>
+        <div class="rh">Ação</div>
+        <div class="rh" style="text-align:center">Ativo</div>
+      </div>
+      <div id="review-rows"></div>
+    </div>
+    <div class="review-apply-bar">
+      <div class="review-summary" id="review-summary">—</div>
+      <button class="btn btn-primary" onclick="applyFromReview()">🛡️ Aplicar Proteção →</button>
+    </div>
+  </div>
+
+  <!-- RESULTS SCREEN -->
+  <div id="screen-results" class="hidden">
+    <div class="stats-row" id="stats-row"></div>
+    <div id="error-box" class="error-box hidden"></div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('detection')">🔍 Detecção</button>
+      <button class="tab" onclick="switchTab('diff')">↔ Comparação</button>
+      <button class="tab" onclick="switchTab('community')">🌐 Comunidade</button>
+    </div>
+
+    <!-- Detection -->
+    <div class="tab-panel active" id="tab-detection">
+      <div class="report-section">
+        <div class="report-title">Colunas protegidas</div>
+        <div class="detection-list" id="detection-list"></div>
+      </div>
+    </div>
+
+    <!-- Diff -->
+    <div class="tab-panel" id="tab-diff">
+      <div class="section">
+        <div class="results-header">
+          <div class="results-title">↔ Comparação</div>
+          <button class="new-file-btn" onclick="resetApp()">↩ Voltar ao início</button>
+        </div>
+        <div class="table-wrap">
+          <div class="table-scroll">
+            <table class="data-table" id="table-diff"></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Community -->
+    <div class="tab-panel" id="tab-community">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+        <div>
+          <div style="font-family:var(--sans);font-size:13px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.08em;">🌐 Dicionário da Comunidade</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);margin-top:3px;" id="comm-subtitle">Termos sensíveis detectados automaticamente</div>
+        </div>
+        <button class="new-file-btn" onclick="loadCommunityTerms(true)">↻ Atualizar</button>
+      </div>
+      <div class="comm-stats" id="comm-stats"></div>
+      <div class="comm-add-bar">
+        <div class="comm-field" style="flex:2;min-width:140px;">
+          <label>Termo ou cabeçalho</label>
+          <input class="comm-input" id="comm-term-input" type="text"
+            placeholder="ex: razao_social, ADM..."
+            onkeydown="if(event.key==='Enter') addCommunityTerm()" />
+        </div>
+        <div class="comm-field">
+          <label>Tipo de match</label>
+          <select class="comm-select" id="comm-kind-select">
+            <option value="header">Cabeçalho</option>
+            <option value="value">Valor exato</option>
+            <option value="pattern">Contém</option>
+          </select>
+        </div>
+        <div class="comm-field">
+          <label>Categoria</label>
+          <select class="comm-select" id="comm-type-select">
+            <option value="COMPANY">Empresa / Trading</option>
+            <option value="NAME">Nome</option>
+            <option value="CPF">CPF</option>
+            <option value="CNPJ">CNPJ</option>
+            <option value="PHONE">Telefone</option>
+            <option value="EMAIL">E-mail</option>
+            <option value="ADDRESS">Endereço</option>
+            <option value="BANK">Financeiro</option>
+            <option value="OTHER_PII">Outro</option>
+          </select>
+        </div>
+        <div class="comm-field">
+          <label>Escopo</label>
+          <select class="comm-select" id="comm-scope-select">
+            <option value="org">Apenas para mim</option>
+            <option value="global">Para todos</option>
+          </select>
+        </div>
+        <button class="comm-add-btn" onclick="addCommunityTerm()">+ Adicionar</button>
+      </div>
+      <div id="comm-add-msg" style="margin-bottom:8px;"></div>
+      <div class="table-wrap">
+        <div class="table-scroll" style="max-height:400px;">
+          <table class="comm-table">
+            <thead><tr>
+              <th>Termo</th><th>Match</th><th>Categoria</th>
+              <th>Adicionado por</th><th>Hits</th><th>Escopo</th><th></th>
+            </tr></thead>
+            <tbody id="comm-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions-bar">
+      <div class="info" id="actions-info"></div>
+      <button class="btn btn-secondary" onclick="resetApp()">↩ Voltar ao início</button>
+      <button class="btn btn-secondary" onclick="goBackToReview()" style="gap:6px;">✏️ Editar seleção</button>
+      <button class="btn btn-primary" id="btn-download-main" onclick="downloadAndReveal()">⬇ Baixar planilha protegida</button>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- Download progress modal -->
+<div id="dl-overlay" class="dl-overlay hidden">
+  <div class="dl-modal">
+    <div class="dl-title">Preparando arquivo</div>
+    <div class="dl-subtitle">Aguarde...</div>
+    <div class="dl-steps">
+      <div class="dl-step" id="dl-step-0"><div class="dl-step-icon" id="dl-icon-0">1</div><span>Iniciando cifra</span></div>
+      <div class="dl-step" id="dl-step-1"><div class="dl-step-icon" id="dl-icon-1">2</div><span>Salvando cifra no Vault</span></div>
+      <div class="dl-step" id="dl-step-2"><div class="dl-step-icon" id="dl-icon-2">3</div><span>Montando planilha</span></div>
+      <div class="dl-step" id="dl-step-3"><div class="dl-step-icon" id="dl-icon-3">4</div><span>Comprimindo</span></div>
+      <div class="dl-step" id="dl-step-4"><div class="dl-step-icon" id="dl-icon-4">5</div><span>Download</span></div>
+    </div>
+    <div class="dl-progress-track"><div class="dl-progress-fill" id="dl-progress" style="width:0%"></div></div>
+    <div class="dl-status" id="dl-status">Iniciando...</div>
+  </div>
+</div>
+
+<!-- Community prompt -->
+<div id="comm-prompt" style="display:none;" class="comm-prompt">
+  <div class="comm-prompt-title">🌐 Adicionar à Comunidade?</div>
+  <div class="comm-prompt-sub" id="comm-prompt-sub"></div>
+  <div class="comm-prompt-row">
+    <select class="comm-prompt-select" id="comm-prompt-type">
+      <option value="COMPANY">Empresa / Trading</option>
+      <option value="NAME">Nome</option>
+      <option value="CPF">CPF</option>
+      <option value="CNPJ">CNPJ</option>
+      <option value="PHONE">Telefone</option>
+      <option value="EMAIL">E-mail</option>
+      <option value="ADDRESS">Endereço</option>
+      <option value="BANK">Financeiro</option>
+      <option value="OTHER_PII">Outro</option>
+    </select>
+    <select class="comm-prompt-select" id="comm-prompt-scope">
+      <option value="org">Apenas para mim</option>
+      <option value="global">Para todos</option>
+    </select>
+    <button class="comm-prompt-btn" onclick="confirmCommunityAdd()">Adicionar →</button>
+    <button class="comm-prompt-skip" onclick="dismissCommunityPrompt()">Ignorar</button>
+  </div>
+</div>
+
+<!-- Support popup -->
+<div id="chat-window" style="display:none;" class="chat-window">
+  <div class="chat-head">
+    <div class="chat-avatar">LS</div>
+    <div>
+      <div class="chat-head-name">Lucas Santos</div>
+      <div class="chat-head-status"><div class="pulse-dot" style="width:6px;height:6px;"></div>Suporte Data Masking</div>
+    </div>
+    <button class="chat-close" onclick="closeSupport()">✕</button>
+  </div>
+  <div class="chat-body">
+    <div style="font-size:36px;margin-bottom:10px;">💬</div>
+    <div style="font-family:var(--sans);font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;">Precisa de ajuda?</div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);line-height:1.7;margin-bottom:18px;">
+      Fale com Lucas Santos pelo <strong style="color:var(--green);">Google Chat</strong>
+    </div>
+    <a href="https://mail.google.com/chat/u/0/#chat/dm/lucas.santos@graodireto.com.br"
+       target="_blank"
+       style="display:inline-flex;align-items:center;gap:8px;background:var(--green);color:#fff;border-radius:10px;padding:11px 22px;font-family:var(--sans);font-size:13px;font-weight:700;text-decoration:none;letter-spacing:.04em;">
+      Abrir no Google Chat
+    </a>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);margin-top:12px;"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="c0acb5a3a1b3eeb3a1aeb4afb380a7b2a1afa4a9b2a5b4afeea3afadeea2b2">[email&#160;protected]</a></div>
+  </div>
+</
+
+</body>
+</html>
